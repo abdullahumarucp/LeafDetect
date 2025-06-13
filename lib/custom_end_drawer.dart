@@ -1,3 +1,4 @@
+import 'package:LeafDetect/chatbot/chatbot.dart';
 import 'package:flutter/material.dart';
 import 'about_page.dart';
 import 'notification/notifi_service.dart';
@@ -54,6 +55,17 @@ class CustomEndDrawer extends StatelessWidget {
               Navigator.of(context).push(
                 MaterialPageRoute(
                   builder: (context) => ContactPage(),
+                ),
+              );
+            },
+          ),
+          ListTile(
+            leading: Icon(Icons.person),
+            title: Text('Chatbot'),
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => ChatScreen(),
                 ),
               );
             },

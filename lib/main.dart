@@ -1,9 +1,12 @@
 import 'package:LeafDetect/Splashscreen.dart';
+import 'package:LeafDetect/chatbot/chat_provider.dart';
+import 'package:LeafDetect/chatbot/models_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:gal/gal.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:provider/provider.dart';
 import 'dart:developer' as developer;
 import 'dart:async';
 import 'home_plant_buttons.dart';
@@ -28,7 +31,15 @@ void main() async {
   await NotificationService().init();
   tz.initializeTimeZones();
   tz.setLocalLocation(tz.getLocation('Asia/Karachi'));
-  runApp(MyApp2());
+ runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => ModelsProvider()),
+        ChangeNotifierProvider(create: (_) => ChatProvider()),
+      ],
+      child: const MyApp2(),
+    ),
+  );
 }
 
 class MyApp2 extends StatefulWidget {
