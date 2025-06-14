@@ -19,8 +19,10 @@ import 'custom_end_drawer.dart';
 import 'package:LeafDetect/notification/notifi_service.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 void main() async {
+  await dotenv.load(fileName: 'lib/api_const.env');
   WidgetsFlutterBinding.ensureInitialized();
   try {
     await availableCameras(); // Initialize camera
@@ -28,6 +30,7 @@ void main() async {
     developer.log("Error initializing cameras: $e", name: 'Camera', error: e);
     // Optionally, you can show an error dialog or fallback UI here
   }
+  
   await NotificationService().init();
   tz.initializeTimeZones();
   tz.setLocalLocation(tz.getLocation('Asia/Karachi'));

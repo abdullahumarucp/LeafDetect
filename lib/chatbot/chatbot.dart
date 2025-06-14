@@ -27,6 +27,9 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
+    Future.microtask(() {
+      Provider.of<ChatProvider>(context, listen: false).loadChatHistory();
+    });
     _listScrollController = ScrollController();
     textEditingController = TextEditingController();
     focusNode = FocusNode();
@@ -171,7 +174,7 @@ class _ChatScreenState extends State<ChatScreen> {
     try {
       setState(() {
         _isTyping = true;
-        chatProvider.addUserMessage(msg: message);
+        //chatProvider.addUserMessage(msg: message);
         textEditingController.clear();
         focusNode.unfocus();
       });

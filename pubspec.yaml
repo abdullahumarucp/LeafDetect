@@ -53,6 +53,9 @@ dependencies:
   provider: ^6.1.5
   animated_text_kit: ^4.2.3
   http: ^1.4.0
+  google_generative_ai: ^0.2.0
+  flutter_dotenv: ^5.2.1 
+  
 
 dev_dependencies:
   flutter_test:
@@ -64,7 +67,6 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^5.0.0
-  
   
 flutter_launcher_icons:
   android: "launcher_icon"
@@ -130,7 +132,7 @@ flutter:
     - assets/cornrust.jpg
     - assets/cornblight.jpg
     - assets/person.png
-
+    - lib/api_const.env
 
 
 
