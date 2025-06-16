@@ -1,6 +1,5 @@
 import 'dart:developer';
 
-import 'package:LeafDetect/chatbot/assets_manager.dart';
 import 'package:LeafDetect/chatbot/chat_model.dart';
 import 'package:LeafDetect/chatbot/chat_provider.dart';
 import 'package:LeafDetect/chatbot/chat_widget.dart';
@@ -27,9 +26,9 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
-    Future.microtask(() {
-      Provider.of<ChatProvider>(context, listen: false).loadChatHistory();
-    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+    Provider.of<ChatProvider>(context, listen: false).clearChatHistory();
+  });
     _listScrollController = ScrollController();
     textEditingController = TextEditingController();
     focusNode = FocusNode();
@@ -163,7 +162,7 @@ class _ChatScreenState extends State<ChatScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: TextWidget(
-            label: "You cant send multiple message at a time",
+            label: "You can't send multiple messages at a time",
           ),
           backgroundColor: Colors.red,
         ),
@@ -174,7 +173,6 @@ class _ChatScreenState extends State<ChatScreen> {
     try {
       setState(() {
         _isTyping = true;
-        //chatProvider.addUserMessage(msg: message);
         textEditingController.clear();
         focusNode.unfocus();
       });
