@@ -35,7 +35,7 @@ class _HistoryPageState extends State<HistoryPage> {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (context) => const Firstpage(),
+            builder: (context) => const Firstpage(cameras: [],),
           ),
         );
       } else if (index == 1) {

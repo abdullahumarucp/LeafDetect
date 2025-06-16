@@ -232,7 +232,7 @@ class _SearchPageState extends State<SearchPage> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => const Firstpage(),
+            builder: (context) => const Firstpage(cameras: [],),
           ),
         );
       } else if (index == 2) {
