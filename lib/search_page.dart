@@ -1,5 +1,3 @@
-// ignore_for_file: deprecated_member_use
-
 import 'package:flutter/material.dart';
 import 'main.dart';
 import 'custom_appbar.dart';
@@ -7,6 +5,7 @@ import 'bottom_bar.dart';
 import 'history_page.dart';
 import 'gradient_background.dart';
 import 'custom_end_drawer.dart';
+import 'package:translator/translator.dart';
 
 class SearchPage extends StatefulWidget {
   final int currentIndex;
@@ -88,7 +87,7 @@ class _SearchPageState extends State<SearchPage> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => const GrapesDiseaseDetails(),
+            builder: (context) => const GrapeDiseaseDetails(),
           ),
         );
       },
@@ -415,7 +414,7 @@ final List<PlantData> plantDataList = [
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => const GrapesDiseaseDetails(),
+          builder: (context) => const GrapeDiseaseDetails(),
         ),
       );
     },
@@ -542,10 +541,17 @@ final List<PlantData> plantDataList = [
   ),
   // Add more items as needed...
 ];
-
-class AppleDiseaseDetails extends StatelessWidget {
+class AppleDiseaseDetails extends StatefulWidget {
   const AppleDiseaseDetails({super.key});
 
+  @override
+  State<AppleDiseaseDetails> createState() => _AppleDiseaseDetailsState();
+}
+
+class _AppleDiseaseDetailsState extends State<AppleDiseaseDetails> {
+  bool showUrdu = false;
+  bool isLoading = false;
+  final translator = GoogleTranslator();
   final List<Map<String, String>> appleData = const [
     {
       'image': 'assets/appleblackrot.jpg',
@@ -666,23 +672,72 @@ class AppleDiseaseDetails extends StatelessWidget {
     },
   ];
 
+final Map<String, String> _translationCache = {};
+
+  Future<void> _toggleLanguage() async {
+    setState(() => isLoading = true);
+    showUrdu = !showUrdu;
+    
+    // Only translate if we don't have cached translations
+    if (showUrdu) {
+      for (var disease in appleData) {
+        final key = '${disease['title']}|${disease['description']}';
+        if (!_translationCache.containsKey(key)) {
+          final titleTranslation = await translator.translate(
+            disease['title']!, 
+            to: 'ur'
+          );
+          final descTranslation = await translator.translate(
+            disease['description']!, 
+            to: 'ur'
+          );
+          _translationCache[key] = '$titleTranslation|$descTranslation';
+        }
+      }
+    }
+    
+    setState(() => isLoading = false);
+  }
+
+  String _getTranslatedTitle(Map<String, String> disease) {
+    if (!showUrdu) return disease['title']!;
+    final key = '${disease['title']}|${disease['description']}';
+    return _translationCache[key]?.split('|').first ?? disease['title']!;
+  }
+
+  String _getTranslatedDescription(Map<String, String> disease) {
+    if (!showUrdu) return disease['description']!;
+    final key = '${disease['title']}|${disease['description']}';
+    return _translationCache[key]?.split('|').last ?? disease['description']!;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Apple Disease Details'),
         backgroundColor: const Color.fromARGB(255, 153, 232, 156),
+actions: [
+  IconButton(
+    icon: Icon(showUrdu ? Icons.language : Icons.translate),
+    onPressed: isLoading ? null : _toggleLanguage,
+    tooltip: showUrdu ? 'Show English' : 'Translate to Urdu',
+  ),
+],
+
       ),
       body: GradientBackground(
         child: Center(
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: appleData
-                  .map((data) => _buildDiseaseContainer(context, data))
-                  .toList(),
-            ),
-          ),
+          child: isLoading
+              ? const CircularProgressIndicator()
+              : SingleChildScrollView(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: appleData
+                        .map((data) => _buildDiseaseContainer(context, data))
+                        .toList(),
+                  ),
+                ),
         ),
       ),
     );
@@ -690,6 +745,9 @@ class AppleDiseaseDetails extends StatelessWidget {
 
   Widget _buildDiseaseContainer(
       BuildContext context, Map<String, String> data) {
+    final title = _getTranslatedTitle(data);
+    final description = _getTranslatedDescription(data);
+
     return Container(
       margin: const EdgeInsets.all(12),
       padding: const EdgeInsets.all(12),
@@ -712,14 +770,14 @@ class AppleDiseaseDetails extends StatelessWidget {
             data['image'] ?? '',
             height: 150,
             width: double.infinity,
-            fit: BoxFit.contain, // Changed from BoxFit.cover to BoxFit.contain
+            fit: BoxFit.contain,
           ),
           const SizedBox(height: 8),
           Container(
             alignment: Alignment.center,
             width: double.infinity,
             child: Text(
-              data['title'] ?? '',
+              title,
               style: const TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: 16,
@@ -729,18 +787,19 @@ class AppleDiseaseDetails extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           TextField(
-            controller: TextEditingController(text: data['description'] ?? ''),
+            controller: TextEditingController(text: description),
             enabled: false,
             maxLines: null,
-            style: const TextStyle(
+            style: TextStyle(
               color: Colors.black87,
               fontSize: 16,
               fontWeight: FontWeight.w400,
               letterSpacing: 0.5,
+              fontFamily: showUrdu ? 'NotoNastaliqUrdu' : null,
             ),
+            textDirection: showUrdu ? TextDirection.rtl : TextDirection.ltr,
             decoration: InputDecoration(
               filled: true,
-
               fillColor: Colors.white.withOpacity(0.9),
               contentPadding:
                   const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
@@ -751,18 +810,16 @@ class AppleDiseaseDetails extends StatelessWidget {
                   width: 2,
                 ),
               ),
-              // Add a subtle shadow to the border for depth
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide.none,
               ),
-              // Add a gradient background for visual appeal
               prefixIcon: const Icon(
                 Icons.description_rounded,
                 color: Colors.blueAccent,
                 size: 24,
               ),
-              labelText: 'Description',
+              labelText: showUrdu ? 'تفصیل' : 'Description',
               labelStyle: TextStyle(
                 color: Colors.blueAccent.withOpacity(0.7),
                 fontWeight: FontWeight.w600,
@@ -771,7 +828,6 @@ class AppleDiseaseDetails extends StatelessWidget {
                 color: Colors.blueAccent,
                 fontWeight: FontWeight.bold,
               ),
-              // Add a subtle box shadow to the entire field
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide(
@@ -779,8 +835,7 @@ class AppleDiseaseDetails extends StatelessWidget {
                   width: 2,
                 ),
               ),
-              // Add a hint for better UX
-              hintText: 'No description available',
+              hintText: showUrdu ? 'تفصیل دستیاب نہیں' : 'No description available',
               hintStyle: TextStyle(
                 color: Colors.grey.withOpacity(0.5),
                 fontStyle: FontStyle.italic,
@@ -793,8 +848,17 @@ class AppleDiseaseDetails extends StatelessWidget {
   }
 }
 
-class GuavaDiseaseDetails extends StatelessWidget {
+class GuavaDiseaseDetails extends StatefulWidget {
   const GuavaDiseaseDetails({super.key});
+
+  @override
+  State<GuavaDiseaseDetails> createState() => _GuavaDiseaseDetailsState();
+}
+
+class _GuavaDiseaseDetailsState extends State<GuavaDiseaseDetails> {
+  bool showUrdu = false;
+  bool isLoading = false;
+  final translator = GoogleTranslator();
 
   final List<Map<String, String>> guavadata = const [
     {
@@ -859,23 +923,72 @@ class GuavaDiseaseDetails extends StatelessWidget {
     },
   ];
 
+ final Map<String, String> _translationCache = {};
+
+  Future<void> _toggleLanguage() async {
+    setState(() => isLoading = true);
+    showUrdu = !showUrdu;
+    
+    // Only translate if we don't have cached translations
+    if (showUrdu) {
+      for (var disease in guavadata) {
+        final key = '${disease['title']}|${disease['description']}';
+        if (!_translationCache.containsKey(key)) {
+          final titleTranslation = await translator.translate(
+            disease['title']!, 
+            to: 'ur'
+          );
+          final descTranslation = await translator.translate(
+            disease['description']!,
+            to: 'ur'
+          );
+          _translationCache[key] = '$titleTranslation|$descTranslation';
+        }
+      }
+    }
+    
+    setState(() => isLoading = false);
+  }
+
+  String _getTranslatedTitle(Map<String, String> disease) {
+    if (!showUrdu) return disease['title']!;
+    final key = '${disease['title']}|${disease['description']}';
+    return _translationCache[key]?.split('|').first ?? disease['title']!;
+  }
+
+  String _getTranslatedDescription(Map<String, String> disease) {
+    if (!showUrdu) return disease['description']!;
+    final key = '${disease['title']}|${disease['description']}';
+    return _translationCache[key]?.split('|').last ?? disease['description']!;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Guava Disease Details'),
         backgroundColor: const Color.fromARGB(255, 153, 232, 156),
+actions: [
+  IconButton(
+    icon: Icon(showUrdu ? Icons.language : Icons.translate),
+    onPressed: isLoading ? null : _toggleLanguage,
+    tooltip: showUrdu ? 'Show English' : 'Translate to Urdu',
+  ),
+],
+
       ),
       body: GradientBackground(
         child: Center(
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: guavadata
-                  .map((data) => _buildDiseaseContainer(context, data))
-                  .toList(),
-            ),
-          ),
+          child: isLoading
+              ? const CircularProgressIndicator()
+              : SingleChildScrollView(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: guavadata
+                        .map((data) => _buildDiseaseContainer(context, data))
+                        .toList(),
+                  ),
+                ),
         ),
       ),
     );
@@ -883,6 +996,9 @@ class GuavaDiseaseDetails extends StatelessWidget {
 
   Widget _buildDiseaseContainer(
       BuildContext context, Map<String, String> data) {
+    final title = _getTranslatedTitle(data);
+    final description = _getTranslatedDescription(data);
+
     return Container(
       margin: const EdgeInsets.all(12),
       padding: const EdgeInsets.all(12),
@@ -905,14 +1021,14 @@ class GuavaDiseaseDetails extends StatelessWidget {
             data['image'] ?? '',
             height: 150,
             width: double.infinity,
-            fit: BoxFit.cover,
+            fit: BoxFit.contain,
           ),
           const SizedBox(height: 8),
           Container(
             alignment: Alignment.center,
             width: double.infinity,
             child: Text(
-              data['title'] ?? '',
+              title,
               style: const TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: 16,
@@ -922,16 +1038,17 @@ class GuavaDiseaseDetails extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           TextField(
-            controller: TextEditingController(text: data['description'] ?? ''),
+            controller: TextEditingController(text: description),
             enabled: false,
             maxLines: null,
-            textAlign: TextAlign.center, // Aligns text to the center
-            style: const TextStyle(
+            style: TextStyle(
               color: Colors.black87,
               fontSize: 16,
               fontWeight: FontWeight.w400,
               letterSpacing: 0.5,
+              fontFamily: showUrdu ? 'NotoNastaliqUrdu' : null,
             ),
+            textDirection: showUrdu ? TextDirection.rtl : TextDirection.ltr,
             decoration: InputDecoration(
               filled: true,
               fillColor: Colors.white.withOpacity(0.9),
@@ -953,7 +1070,7 @@ class GuavaDiseaseDetails extends StatelessWidget {
                 color: Colors.blueAccent,
                 size: 24,
               ),
-              labelText: 'Description',
+              labelText: showUrdu ? 'تفصیل' : 'Description',
               labelStyle: TextStyle(
                 color: Colors.blueAccent.withOpacity(0.7),
                 fontWeight: FontWeight.w600,
@@ -969,7 +1086,7 @@ class GuavaDiseaseDetails extends StatelessWidget {
                   width: 2,
                 ),
               ),
-              hintText: 'No description available',
+              hintText: showUrdu ? 'تفصیل دستیاب نہیں' : 'No description available',
               hintStyle: TextStyle(
                 color: Colors.grey.withOpacity(0.5),
                 fontStyle: FontStyle.italic,
@@ -981,9 +1098,17 @@ class GuavaDiseaseDetails extends StatelessWidget {
     );
   }
 }
-
-class TomatoDiseaseDetails extends StatelessWidget {
+class TomatoDiseaseDetails extends StatefulWidget {
   const TomatoDiseaseDetails({super.key});
+
+  @override
+  State<TomatoDiseaseDetails> createState() => _TomatoDiseaseDetailsState();
+}
+
+class _TomatoDiseaseDetailsState extends State<TomatoDiseaseDetails> {
+  bool showUrdu = false;
+  bool isLoading = false;
+  final translator = GoogleTranslator();
 
   final List<Map<String, String>> tomatoData = const [
     {
@@ -1096,23 +1221,72 @@ class TomatoDiseaseDetails extends StatelessWidget {
     },
   ];
 
+  final Map<String, String> _translationCache = {};
+
+  Future<void> _toggleLanguage() async {
+    setState(() => isLoading = true);
+    showUrdu = !showUrdu;
+    
+    // Only translate if we don't have cached translations
+    if (showUrdu) {
+      for (var disease in tomatoData) {
+        final key = '${disease['title']}|${disease['description']}';
+        if (!_translationCache.containsKey(key)) {
+          final titleTranslation = await translator.translate(
+            disease['title']!,
+            to: 'ur'
+          );
+          final descTranslation = await translator.translate(
+            disease['description']!,
+            to: 'ur'
+          );
+          _translationCache[key] = '$titleTranslation|$descTranslation';
+        }
+      }
+    }
+    
+    setState(() => isLoading = false);
+  }
+
+  String _getTranslatedTitle(Map<String, String> disease) {
+    if (!showUrdu) return disease['title']!;
+    final key = '${disease['title']}|${disease['description']}';
+    return _translationCache[key]?.split('|').first ?? disease['title']!;
+  }
+
+  String _getTranslatedDescription(Map<String, String> disease) {
+    if (!showUrdu) return disease['description']!;
+    final key = '${disease['title']}|${disease['description']}';
+    return _translationCache[key]?.split('|').last ?? disease['description']!;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Tomato Disease Details'),
         backgroundColor: const Color.fromARGB(255, 153, 232, 156),
+actions: [
+  IconButton(
+    icon: Icon(showUrdu ? Icons.language : Icons.translate),
+    onPressed: isLoading ? null : _toggleLanguage,
+    tooltip: showUrdu ? 'Show English' : 'Translate to Urdu',
+  ),
+],
+
       ),
       body: GradientBackground(
         child: Center(
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: tomatoData
-                  .map((data) => _buildDiseaseContainer(context, data))
-                  .toList(),
-            ),
-          ),
+          child: isLoading
+              ? const CircularProgressIndicator()
+              : SingleChildScrollView(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: tomatoData
+                        .map((data) => _buildDiseaseContainer(context, data))
+                        .toList(),
+                  ),
+                ),
         ),
       ),
     );
@@ -1120,6 +1294,9 @@ class TomatoDiseaseDetails extends StatelessWidget {
 
   Widget _buildDiseaseContainer(
       BuildContext context, Map<String, String> data) {
+    final title = _getTranslatedTitle(data);
+    final description = _getTranslatedDescription(data);
+
     return Container(
       margin: const EdgeInsets.all(12),
       padding: const EdgeInsets.all(12),
@@ -1142,14 +1319,14 @@ class TomatoDiseaseDetails extends StatelessWidget {
             data['image'] ?? '',
             height: 150,
             width: double.infinity,
-            fit: BoxFit.cover,
+            fit: BoxFit.contain,
           ),
           const SizedBox(height: 8),
           Container(
             alignment: Alignment.center,
             width: double.infinity,
             child: Text(
-              data['title'] ?? '',
+              title,
               style: const TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: 16,
@@ -1159,16 +1336,17 @@ class TomatoDiseaseDetails extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           TextField(
-            controller: TextEditingController(text: data['description'] ?? ''),
+            controller: TextEditingController(text: description),
             enabled: false,
             maxLines: null,
-            textAlign: TextAlign.center, // Aligns text to the center
-            style: const TextStyle(
+            style: TextStyle(
               color: Colors.black87,
               fontSize: 16,
               fontWeight: FontWeight.w400,
               letterSpacing: 0.5,
+              fontFamily: showUrdu ? 'NotoNastaliqUrdu' : null,
             ),
+            textDirection: showUrdu ? TextDirection.rtl : TextDirection.ltr,
             decoration: InputDecoration(
               filled: true,
               fillColor: Colors.white.withOpacity(0.9),
@@ -1190,7 +1368,7 @@ class TomatoDiseaseDetails extends StatelessWidget {
                 color: Colors.blueAccent,
                 size: 24,
               ),
-              labelText: 'Description',
+              labelText: showUrdu ? 'تفصیل' : 'Description',
               labelStyle: TextStyle(
                 color: Colors.blueAccent.withOpacity(0.7),
                 fontWeight: FontWeight.w600,
@@ -1206,7 +1384,7 @@ class TomatoDiseaseDetails extends StatelessWidget {
                   width: 2,
                 ),
               ),
-              hintText: 'No description available',
+              hintText: showUrdu ? 'تفصیل دستیاب نہیں' : 'No description available',
               hintStyle: TextStyle(
                 color: Colors.grey.withOpacity(0.5),
                 fontStyle: FontStyle.italic,
@@ -1219,8 +1397,18 @@ class TomatoDiseaseDetails extends StatelessWidget {
   }
 }
 
-class CherryDiseaseDetails extends StatelessWidget {
+
+class CherryDiseaseDetails extends StatefulWidget {
   const CherryDiseaseDetails({super.key});
+
+  @override
+  State<CherryDiseaseDetails> createState() => _CherryDiseaseDetailsState();
+}
+
+class _CherryDiseaseDetailsState extends State<CherryDiseaseDetails> {
+  bool showUrdu = false;
+  bool isLoading = false;
+  final translator = GoogleTranslator();
 
   final List<Map<String, String>> cherryData = const [
     {
@@ -1249,23 +1437,72 @@ class CherryDiseaseDetails extends StatelessWidget {
     },
   ];
 
+  final Map<String, String> _translationCache = {};
+
+  Future<void> _toggleLanguage() async {
+    setState(() => isLoading = true);
+    showUrdu = !showUrdu;
+    
+    // Only translate if we don't have cached translations
+    if (showUrdu) {
+      for (var disease in cherryData) {
+        final key = '${disease['title']}|${disease['description']}';
+        if (!_translationCache.containsKey(key)) {
+          final titleTranslation = await translator.translate(
+            disease['title']!,
+            to: 'ur'
+          );
+          final descTranslation = await translator.translate(
+            disease['description']!,
+            to: 'ur'
+          );
+          _translationCache[key] = '$titleTranslation|$descTranslation';
+        }
+      }
+    }
+    
+    setState(() => isLoading = false);
+  }
+
+  String _getTranslatedTitle(Map<String, String> disease) {
+    if (!showUrdu) return disease['title']!;
+    final key = '${disease['title']}|${disease['description']}';
+    return _translationCache[key]?.split('|').first ?? disease['title']!;
+  }
+
+  String _getTranslatedDescription(Map<String, String> disease) {
+    if (!showUrdu) return disease['description']!;
+    final key = '${disease['title']}|${disease['description']}';
+    return _translationCache[key]?.split('|').last ?? disease['description']!;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Cherry Disease Details'),
         backgroundColor: const Color.fromARGB(255, 153, 232, 156),
+actions: [
+  IconButton(
+    icon: Icon(showUrdu ? Icons.language : Icons.translate),
+    onPressed: isLoading ? null : _toggleLanguage,
+    tooltip: showUrdu ? 'Show English' : 'Translate to Urdu',
+  ),
+],
+
       ),
       body: GradientBackground(
         child: Center(
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: cherryData
-                  .map((data) => _buildDiseaseContainer(context, data))
-                  .toList(),
-            ),
-          ),
+          child: isLoading
+              ? const CircularProgressIndicator()
+              : SingleChildScrollView(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: cherryData
+                        .map((data) => _buildDiseaseContainer(context, data))
+                        .toList(),
+                  ),
+                ),
         ),
       ),
     );
@@ -1273,6 +1510,9 @@ class CherryDiseaseDetails extends StatelessWidget {
 
   Widget _buildDiseaseContainer(
       BuildContext context, Map<String, String> data) {
+    final title = _getTranslatedTitle(data);
+    final description = _getTranslatedDescription(data);
+
     return Container(
       margin: const EdgeInsets.all(12),
       padding: const EdgeInsets.all(12),
@@ -1295,14 +1535,14 @@ class CherryDiseaseDetails extends StatelessWidget {
             data['image'] ?? '',
             height: 150,
             width: double.infinity,
-            fit: BoxFit.cover,
+            fit: BoxFit.contain,
           ),
           const SizedBox(height: 8),
           Container(
             alignment: Alignment.center,
             width: double.infinity,
             child: Text(
-              data['title'] ?? '',
+              title,
               style: const TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: 16,
@@ -1312,16 +1552,17 @@ class CherryDiseaseDetails extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           TextField(
-            controller: TextEditingController(text: data['description'] ?? ''),
+            controller: TextEditingController(text: description),
             enabled: false,
             maxLines: null,
-            textAlign: TextAlign.center, // Aligns text to the center
-            style: const TextStyle(
+            style: TextStyle(
               color: Colors.black87,
               fontSize: 16,
               fontWeight: FontWeight.w400,
               letterSpacing: 0.5,
+              fontFamily: showUrdu ? 'NotoNastaliqUrdu' : null,
             ),
+            textDirection: showUrdu ? TextDirection.rtl : TextDirection.ltr,
             decoration: InputDecoration(
               filled: true,
               fillColor: Colors.white.withOpacity(0.9),
@@ -1343,7 +1584,7 @@ class CherryDiseaseDetails extends StatelessWidget {
                 color: Colors.blueAccent,
                 size: 24,
               ),
-              labelText: 'Description',
+              labelText: showUrdu ? 'تفصیل' : 'Description',
               labelStyle: TextStyle(
                 color: Colors.blueAccent.withOpacity(0.7),
                 fontWeight: FontWeight.w600,
@@ -1359,7 +1600,7 @@ class CherryDiseaseDetails extends StatelessWidget {
                   width: 2,
                 ),
               ),
-              hintText: 'No description available',
+              hintText: showUrdu ? 'تفصیل دستیاب نہیں' : 'No description available',
               hintStyle: TextStyle(
                 color: Colors.grey.withOpacity(0.5),
                 fontStyle: FontStyle.italic,
@@ -1371,9 +1612,17 @@ class CherryDiseaseDetails extends StatelessWidget {
     );
   }
 }
-
-class LemonDiseaseDetails extends StatelessWidget {
+class LemonDiseaseDetails extends StatefulWidget {
   const LemonDiseaseDetails({super.key});
+
+  @override
+  State<LemonDiseaseDetails> createState() => _LemonDiseaseDetailsState();
+}
+
+class _LemonDiseaseDetailsState extends State<LemonDiseaseDetails> {
+  bool showUrdu = false;
+  bool isLoading = false;
+  final translator = GoogleTranslator();
 
   final List<Map<String, String>> lemonData = const [
     {
@@ -1454,23 +1703,72 @@ class LemonDiseaseDetails extends StatelessWidget {
     },
   ];
 
+final Map<String, String> _translationCache = {};
+
+  Future<void> _toggleLanguage() async {
+    setState(() => isLoading = true);
+    showUrdu = !showUrdu;
+    
+    // Only translate if we don't have cached translations
+    if (showUrdu) {
+      for (var disease in lemonData) {
+        final key = '${disease['title']}|${disease['description']}';
+        if (!_translationCache.containsKey(key)) {
+          final titleTranslation = await translator.translate(
+            disease['title']!,
+            to: 'ur'
+          );
+          final descTranslation = await translator.translate(
+            disease['description']!,
+            to: 'ur'
+          );
+          _translationCache[key] = '$titleTranslation|$descTranslation';
+        }
+      }
+    }
+    
+    setState(() => isLoading = false);
+  }
+
+  String _getTranslatedTitle(Map<String, String> disease) {
+    if (!showUrdu) return disease['title']!;
+    final key = '${disease['title']}|${disease['description']}';
+    return _translationCache[key]?.split('|').first ?? disease['title']!;
+  }
+
+  String _getTranslatedDescription(Map<String, String> disease) {
+    if (!showUrdu) return disease['description']!;
+    final key = '${disease['title']}|${disease['description']}';
+    return _translationCache[key]?.split('|').last ?? disease['description']!;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Lemon Disease Details'),
         backgroundColor: const Color.fromARGB(255, 153, 232, 156),
+actions: [
+  IconButton(
+    icon: Icon(showUrdu ? Icons.language : Icons.translate),
+    onPressed: isLoading ? null : _toggleLanguage,
+    tooltip: showUrdu ? 'Show English' : 'Translate to Urdu',
+  ),
+],
+
       ),
       body: GradientBackground(
         child: Center(
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: lemonData
-                  .map((data) => _buildDiseaseContainer(context, data))
-                  .toList(),
-            ),
-          ),
+          child: isLoading
+              ? const CircularProgressIndicator()
+              : SingleChildScrollView(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: lemonData
+                        .map((data) => _buildDiseaseContainer(context, data))
+                        .toList(),
+                  ),
+                ),
         ),
       ),
     );
@@ -1478,6 +1776,9 @@ class LemonDiseaseDetails extends StatelessWidget {
 
   Widget _buildDiseaseContainer(
       BuildContext context, Map<String, String> data) {
+    final title = _getTranslatedTitle(data);
+    final description = _getTranslatedDescription(data);
+
     return Container(
       margin: const EdgeInsets.all(12),
       padding: const EdgeInsets.all(12),
@@ -1500,14 +1801,14 @@ class LemonDiseaseDetails extends StatelessWidget {
             data['image'] ?? '',
             height: 150,
             width: double.infinity,
-            fit: BoxFit.cover,
+            fit: BoxFit.contain,
           ),
           const SizedBox(height: 8),
           Container(
             alignment: Alignment.center,
             width: double.infinity,
             child: Text(
-              data['title'] ?? '',
+              title,
               style: const TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: 16,
@@ -1517,16 +1818,17 @@ class LemonDiseaseDetails extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           TextField(
-            controller: TextEditingController(text: data['description'] ?? ''),
+            controller: TextEditingController(text: description),
             enabled: false,
             maxLines: null,
-            textAlign: TextAlign.center, // Aligns text to the center
-            style: const TextStyle(
+            style: TextStyle(
               color: Colors.black87,
               fontSize: 16,
               fontWeight: FontWeight.w400,
               letterSpacing: 0.5,
+              fontFamily: showUrdu ? 'NotoNastaliqUrdu' : null,
             ),
+            textDirection: showUrdu ? TextDirection.rtl : TextDirection.ltr,
             decoration: InputDecoration(
               filled: true,
               fillColor: Colors.white.withOpacity(0.9),
@@ -1548,7 +1850,7 @@ class LemonDiseaseDetails extends StatelessWidget {
                 color: Colors.blueAccent,
                 size: 24,
               ),
-              labelText: 'Description',
+              labelText: showUrdu ? 'تفصیل' : 'Description',
               labelStyle: TextStyle(
                 color: Colors.blueAccent.withOpacity(0.7),
                 fontWeight: FontWeight.w600,
@@ -1564,7 +1866,7 @@ class LemonDiseaseDetails extends StatelessWidget {
                   width: 2,
                 ),
               ),
-              hintText: 'No description available',
+              hintText: showUrdu ? 'تفصیل دستیاب نہیں' : 'No description available',
               hintStyle: TextStyle(
                 color: Colors.grey.withOpacity(0.5),
                 fontStyle: FontStyle.italic,
@@ -1577,8 +1879,18 @@ class LemonDiseaseDetails extends StatelessWidget {
   }
 }
 
-class GrapesDiseaseDetails extends StatelessWidget {
-  const GrapesDiseaseDetails({super.key});
+class GrapeDiseaseDetails extends StatefulWidget {
+  const GrapeDiseaseDetails({super.key});
+
+  @override
+  State<GrapeDiseaseDetails> createState() => _GrapeDiseaseDetailsState();
+}
+
+class _GrapeDiseaseDetailsState extends State<GrapeDiseaseDetails> {
+  bool showUrdu = false;
+  bool isLoading = false;
+  final translator = GoogleTranslator();
+
 
   final List<Map<String, String>> grapesData = const [
     {
@@ -1666,23 +1978,72 @@ class GrapesDiseaseDetails extends StatelessWidget {
     },
   ];
 
+final Map<String, String> _translationCache = {};
+
+  Future<void> _toggleLanguage() async {
+    setState(() => isLoading = true);
+    showUrdu = !showUrdu;
+    
+  
+    if (showUrdu) {
+      for (var disease in grapesData) {
+        final key = '${disease['title']}|${disease['description']}';
+        if (!_translationCache.containsKey(key)) {
+          final titleTranslation = await translator.translate(
+            disease['title']!,
+            to: 'ur'
+          );
+          final descTranslation = await translator.translate(
+            disease['description']!,
+            to: 'ur'
+          );
+          _translationCache[key] = '$titleTranslation|$descTranslation';
+        }
+      }
+    }
+    
+    setState(() => isLoading = false);
+  }
+
+  String _getTranslatedTitle(Map<String, String> disease) {
+    if (!showUrdu) return disease['title']!;
+    final key = '${disease['title']}|${disease['description']}';
+    return _translationCache[key]?.split('|').first ?? disease['title']!;
+  }
+
+  String _getTranslatedDescription(Map<String, String> disease) {
+    if (!showUrdu) return disease['description']!;
+    final key = '${disease['title']}|${disease['description']}';
+    return _translationCache[key]?.split('|').last ?? disease['description']!;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Grapes Disease Details'),
+        title: const Text('Grape Disease Details'),
         backgroundColor: const Color.fromARGB(255, 153, 232, 156),
+actions: [
+  IconButton(
+    icon: Icon(showUrdu ? Icons.language : Icons.translate),
+    onPressed: isLoading ? null : _toggleLanguage,
+    tooltip: showUrdu ? 'Show English' : 'Translate to Urdu',
+  ),
+],
+
       ),
       body: GradientBackground(
         child: Center(
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: grapesData
-                  .map((data) => _buildDiseaseContainer(context, data))
-                  .toList(),
-            ),
-          ),
+          child: isLoading
+              ? const CircularProgressIndicator()
+              : SingleChildScrollView(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: grapesData
+                        .map((data) => _buildDiseaseContainer(context, data))
+                        .toList(),
+                  ),
+                ),
         ),
       ),
     );
@@ -1690,6 +2051,9 @@ class GrapesDiseaseDetails extends StatelessWidget {
 
   Widget _buildDiseaseContainer(
       BuildContext context, Map<String, String> data) {
+    final title = _getTranslatedTitle(data);
+    final description = _getTranslatedDescription(data);
+
     return Container(
       margin: const EdgeInsets.all(12),
       padding: const EdgeInsets.all(12),
@@ -1712,14 +2076,14 @@ class GrapesDiseaseDetails extends StatelessWidget {
             data['image'] ?? '',
             height: 150,
             width: double.infinity,
-            fit: BoxFit.cover,
+            fit: BoxFit.contain,
           ),
           const SizedBox(height: 8),
           Container(
             alignment: Alignment.center,
             width: double.infinity,
             child: Text(
-              data['title'] ?? '',
+              title,
               style: const TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: 16,
@@ -1729,16 +2093,17 @@ class GrapesDiseaseDetails extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           TextField(
-            controller: TextEditingController(text: data['description'] ?? ''),
+            controller: TextEditingController(text: description),
             enabled: false,
             maxLines: null,
-            textAlign: TextAlign.center, // Aligns text to the center
-            style: const TextStyle(
+            style: TextStyle(
               color: Colors.black87,
               fontSize: 16,
               fontWeight: FontWeight.w400,
               letterSpacing: 0.5,
+              fontFamily: showUrdu ? 'NotoNastaliqUrdu' : null,
             ),
+            textDirection: showUrdu ? TextDirection.rtl : TextDirection.ltr,
             decoration: InputDecoration(
               filled: true,
               fillColor: Colors.white.withOpacity(0.9),
@@ -1760,7 +2125,7 @@ class GrapesDiseaseDetails extends StatelessWidget {
                 color: Colors.blueAccent,
                 size: 24,
               ),
-              labelText: 'Description',
+              labelText: showUrdu ? 'تفصیل' : 'Description',
               labelStyle: TextStyle(
                 color: Colors.blueAccent.withOpacity(0.7),
                 fontWeight: FontWeight.w600,
@@ -1776,7 +2141,7 @@ class GrapesDiseaseDetails extends StatelessWidget {
                   width: 2,
                 ),
               ),
-              hintText: 'No description available',
+              hintText: showUrdu ? 'تفصیل دستیاب نہیں' : 'No description available',
               hintStyle: TextStyle(
                 color: Colors.grey.withOpacity(0.5),
                 fontStyle: FontStyle.italic,
@@ -1789,9 +2154,18 @@ class GrapesDiseaseDetails extends StatelessWidget {
   }
 }
 
-class JamunDiseaseDetails extends StatelessWidget {
+class JamunDiseaseDetails extends StatefulWidget {
   const JamunDiseaseDetails({super.key});
 
+  @override
+  State<JamunDiseaseDetails> createState() => _JamunDiseaseDetailsState();
+}
+
+class _JamunDiseaseDetailsState extends State<JamunDiseaseDetails> {
+  bool showUrdu = false;
+  bool isLoading = false;
+  final translator = GoogleTranslator();
+  
   final List<Map<String, String>> jamunData = const [
     {
       'image': 'assets/jamunbrownblight.jpg',
@@ -1899,23 +2273,71 @@ class JamunDiseaseDetails extends StatelessWidget {
     },
   ];
 
+final Map<String, String> _translationCache = {};
+
+  Future<void> _toggleLanguage() async {
+    setState(() => isLoading = true);
+    showUrdu = !showUrdu;
+
+    if (showUrdu) {
+      for (var disease in jamunData) {
+        final key = '${disease['title']}|${disease['description']}';
+        if (!_translationCache.containsKey(key)) {
+          final titleTranslation = await translator.translate(
+            disease['title']!,
+            to: 'ur'
+          );
+          final descTranslation = await translator.translate(
+            disease['description']!,
+            to: 'ur'
+          );
+          _translationCache[key] = '$titleTranslation|$descTranslation';
+        }
+      }
+    }
+    
+    setState(() => isLoading = false);
+  }
+
+  String _getTranslatedTitle(Map<String, String> disease) {
+    if (!showUrdu) return disease['title']!;
+    final key = '${disease['title']}|${disease['description']}';
+    return _translationCache[key]?.split('|').first ?? disease['title']!;
+  }
+
+  String _getTranslatedDescription(Map<String, String> disease) {
+    if (!showUrdu) return disease['description']!;
+    final key = '${disease['title']}|${disease['description']}';
+    return _translationCache[key]?.split('|').last ?? disease['description']!;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Jamun Disease Details'),
         backgroundColor: const Color.fromARGB(255, 153, 232, 156),
+actions: [
+  IconButton(
+    icon: Icon(showUrdu ? Icons.language : Icons.translate),
+    onPressed: isLoading ? null : _toggleLanguage,
+    tooltip: showUrdu ? 'Show English' : 'Translate to Urdu',
+  ),
+],
+
       ),
       body: GradientBackground(
         child: Center(
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: jamunData
-                  .map((data) => _buildDiseaseContainer(context, data))
-                  .toList(),
-            ),
-          ),
+          child: isLoading
+              ? const CircularProgressIndicator()
+              : SingleChildScrollView(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: jamunData
+                        .map((data) => _buildDiseaseContainer(context, data))
+                        .toList(),
+                  ),
+                ),
         ),
       ),
     );
@@ -1923,6 +2345,9 @@ class JamunDiseaseDetails extends StatelessWidget {
 
   Widget _buildDiseaseContainer(
       BuildContext context, Map<String, String> data) {
+    final title = _getTranslatedTitle(data);
+    final description = _getTranslatedDescription(data);
+
     return Container(
       margin: const EdgeInsets.all(12),
       padding: const EdgeInsets.all(12),
@@ -1945,14 +2370,14 @@ class JamunDiseaseDetails extends StatelessWidget {
             data['image'] ?? '',
             height: 150,
             width: double.infinity,
-            fit: BoxFit.cover,
+            fit: BoxFit.contain,
           ),
           const SizedBox(height: 8),
           Container(
             alignment: Alignment.center,
             width: double.infinity,
             child: Text(
-              data['title'] ?? '',
+              title,
               style: const TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: 16,
@@ -1962,16 +2387,17 @@ class JamunDiseaseDetails extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           TextField(
-            controller: TextEditingController(text: data['description'] ?? ''),
+            controller: TextEditingController(text: description),
             enabled: false,
             maxLines: null,
-            textAlign: TextAlign.center, // Aligns text to the center
-            style: const TextStyle(
+            style: TextStyle(
               color: Colors.black87,
               fontSize: 16,
               fontWeight: FontWeight.w400,
               letterSpacing: 0.5,
+              fontFamily: showUrdu ? 'NotoNastaliqUrdu' : null,
             ),
+            textDirection: showUrdu ? TextDirection.rtl : TextDirection.ltr,
             decoration: InputDecoration(
               filled: true,
               fillColor: Colors.white.withOpacity(0.9),
@@ -1993,7 +2419,7 @@ class JamunDiseaseDetails extends StatelessWidget {
                 color: Colors.blueAccent,
                 size: 24,
               ),
-              labelText: 'Description',
+              labelText: showUrdu ? 'تفصیل' : 'Description',
               labelStyle: TextStyle(
                 color: Colors.blueAccent.withOpacity(0.7),
                 fontWeight: FontWeight.w600,
@@ -2009,7 +2435,7 @@ class JamunDiseaseDetails extends StatelessWidget {
                   width: 2,
                 ),
               ),
-              hintText: 'No description available',
+              hintText: showUrdu ? 'تفصیل دستیاب نہیں' : 'No description available',
               hintStyle: TextStyle(
                 color: Colors.grey.withOpacity(0.5),
                 fontStyle: FontStyle.italic,
@@ -2022,8 +2448,18 @@ class JamunDiseaseDetails extends StatelessWidget {
   }
 }
 
-class CornDiseaseDetails extends StatelessWidget {
+class CornDiseaseDetails extends StatefulWidget {
   const CornDiseaseDetails({super.key});
+
+  @override
+  State<CornDiseaseDetails> createState() => _CornDiseaseDetailsState();
+}
+
+class _CornDiseaseDetailsState extends State<CornDiseaseDetails> {
+  bool showUrdu = false;
+  bool isLoading = false;
+  final translator = GoogleTranslator();
+
 
   final List<Map<String, String>> cornData = const [
     {
@@ -2093,23 +2529,72 @@ class CornDiseaseDetails extends StatelessWidget {
     },
   ];
 
+final Map<String, String> _translationCache = {};
+
+  Future<void> _toggleLanguage() async {
+    setState(() => isLoading = true);
+    showUrdu = !showUrdu;
+    
+    // Only translate if we don't have cached translations
+    if (showUrdu) {
+      for (var disease in cornData) {
+        final key = '${disease['title']}|${disease['description']}';
+        if (!_translationCache.containsKey(key)) {
+          final titleTranslation = await translator.translate(
+            disease['title']!,
+            to: 'ur'
+          );
+          final descTranslation = await translator.translate(
+            disease['description']!,
+            to: 'ur'
+          );
+          _translationCache[key] = '$titleTranslation|$descTranslation';
+        }
+      }
+    }
+    
+    setState(() => isLoading = false);
+  }
+
+  String _getTranslatedTitle(Map<String, String> disease) {
+    if (!showUrdu) return disease['title']!;
+    final key = '${disease['title']}|${disease['description']}';
+    return _translationCache[key]?.split('|').first ?? disease['title']!;
+  }
+
+  String _getTranslatedDescription(Map<String, String> disease) {
+    if (!showUrdu) return disease['description']!;
+    final key = '${disease['title']}|${disease['description']}';
+    return _translationCache[key]?.split('|').last ?? disease['description']!;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Corn Disease Details'),
         backgroundColor: const Color.fromARGB(255, 153, 232, 156),
+actions: [
+  IconButton(
+    icon: Icon(showUrdu ? Icons.language : Icons.translate),
+    onPressed: isLoading ? null : _toggleLanguage,
+    tooltip: showUrdu ? 'Show English' : 'Translate to Urdu',
+  ),
+],
+
       ),
       body: GradientBackground(
         child: Center(
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: cornData
-                  .map((data) => _buildDiseaseContainer(context, data))
-                  .toList(),
-            ),
-          ),
+          child: isLoading
+              ? const CircularProgressIndicator()
+              : SingleChildScrollView(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: cornData
+                        .map((data) => _buildDiseaseContainer(context, data))
+                        .toList(),
+                  ),
+                ),
         ),
       ),
     );
@@ -2117,6 +2602,9 @@ class CornDiseaseDetails extends StatelessWidget {
 
   Widget _buildDiseaseContainer(
       BuildContext context, Map<String, String> data) {
+    final title = _getTranslatedTitle(data);
+    final description = _getTranslatedDescription(data);
+
     return Container(
       margin: const EdgeInsets.all(12),
       padding: const EdgeInsets.all(12),
@@ -2139,14 +2627,14 @@ class CornDiseaseDetails extends StatelessWidget {
             data['image'] ?? '',
             height: 150,
             width: double.infinity,
-            fit: BoxFit.cover,
+            fit: BoxFit.contain,
           ),
           const SizedBox(height: 8),
           Container(
             alignment: Alignment.center,
             width: double.infinity,
             child: Text(
-              data['title'] ?? '',
+              title,
               style: const TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: 16,
@@ -2156,16 +2644,17 @@ class CornDiseaseDetails extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           TextField(
-            controller: TextEditingController(text: data['description'] ?? ''),
+            controller: TextEditingController(text: description),
             enabled: false,
             maxLines: null,
-            textAlign: TextAlign.center, // Aligns text to the center
-            style: const TextStyle(
+            style: TextStyle(
               color: Colors.black87,
               fontSize: 16,
               fontWeight: FontWeight.w400,
               letterSpacing: 0.5,
+              fontFamily: showUrdu ? 'NotoNastaliqUrdu' : null,
             ),
+            textDirection: showUrdu ? TextDirection.rtl : TextDirection.ltr,
             decoration: InputDecoration(
               filled: true,
               fillColor: Colors.white.withOpacity(0.9),
@@ -2187,7 +2676,7 @@ class CornDiseaseDetails extends StatelessWidget {
                 color: Colors.blueAccent,
                 size: 24,
               ),
-              labelText: 'Description',
+              labelText: showUrdu ? 'تفصیل' : 'Description',
               labelStyle: TextStyle(
                 color: Colors.blueAccent.withOpacity(0.7),
                 fontWeight: FontWeight.w600,
@@ -2203,7 +2692,7 @@ class CornDiseaseDetails extends StatelessWidget {
                   width: 2,
                 ),
               ),
-              hintText: 'No description available',
+              hintText: showUrdu ? 'تفصیل دستیاب نہیں' : 'No description available',
               hintStyle: TextStyle(
                 color: Colors.grey.withOpacity(0.5),
                 fontStyle: FontStyle.italic,
@@ -2216,8 +2705,17 @@ class CornDiseaseDetails extends StatelessWidget {
   }
 }
 
-class OrangeDiseaseDetails extends StatelessWidget {
+class OrangeDiseaseDetails extends StatefulWidget {
   const OrangeDiseaseDetails({super.key});
+
+  @override
+  State<OrangeDiseaseDetails> createState() => _OrangeDiseaseDetailsState();
+}
+
+class _OrangeDiseaseDetailsState extends State<OrangeDiseaseDetails> {
+  bool showUrdu = false;
+  bool isLoading = false;
+  final translator = GoogleTranslator();
 
   final List<Map<String, String>> orangeData = const [
     {
@@ -2246,23 +2744,72 @@ class OrangeDiseaseDetails extends StatelessWidget {
     },
   ];
 
+ final Map<String, String> _translationCache = {};
+
+  Future<void> _toggleLanguage() async {
+    setState(() => isLoading = true);
+    showUrdu = !showUrdu;
+    
+    // Only translate if we don't have cached translations
+    if (showUrdu) {
+      for (var disease in orangeData) {
+        final key = '${disease['title']}|${disease['description']}';
+        if (!_translationCache.containsKey(key)) {
+          final titleTranslation = await translator.translate(
+            disease['title']!,
+            to: 'ur'
+          );
+          final descTranslation = await translator.translate(
+            disease['description']!,
+            to: 'ur'
+          );
+          _translationCache[key] = '$titleTranslation|$descTranslation';
+        }
+      }
+    }
+    
+    setState(() => isLoading = false);
+  }
+
+  String _getTranslatedTitle(Map<String, String> disease) {
+    if (!showUrdu) return disease['title']!;
+    final key = '${disease['title']}|${disease['description']}';
+    return _translationCache[key]?.split('|').first ?? disease['title']!;
+  }
+
+  String _getTranslatedDescription(Map<String, String> disease) {
+    if (!showUrdu) return disease['description']!;
+    final key = '${disease['title']}|${disease['description']}';
+    return _translationCache[key]?.split('|').last ?? disease['description']!;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Orange Disease Details'),
         backgroundColor: const Color.fromARGB(255, 153, 232, 156),
+actions: [
+  IconButton(
+    icon: Icon(showUrdu ? Icons.language : Icons.translate),
+    onPressed: isLoading ? null : _toggleLanguage,
+    tooltip: showUrdu ? 'Show English' : 'Translate to Urdu',
+  ),
+],
+
       ),
       body: GradientBackground(
         child: Center(
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: orangeData
-                  .map((data) => _buildDiseaseContainer(context, data))
-                  .toList(),
-            ),
-          ),
+          child: isLoading
+              ? const CircularProgressIndicator()
+              : SingleChildScrollView(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: orangeData
+                        .map((data) => _buildDiseaseContainer(context, data))
+                        .toList(),
+                  ),
+                ),
         ),
       ),
     );
@@ -2270,6 +2817,9 @@ class OrangeDiseaseDetails extends StatelessWidget {
 
   Widget _buildDiseaseContainer(
       BuildContext context, Map<String, String> data) {
+    final title = _getTranslatedTitle(data);
+    final description = _getTranslatedDescription(data);
+
     return Container(
       margin: const EdgeInsets.all(12),
       padding: const EdgeInsets.all(12),
@@ -2292,14 +2842,14 @@ class OrangeDiseaseDetails extends StatelessWidget {
             data['image'] ?? '',
             height: 150,
             width: double.infinity,
-            fit: BoxFit.cover,
+            fit: BoxFit.contain,
           ),
           const SizedBox(height: 8),
           Container(
             alignment: Alignment.center,
             width: double.infinity,
             child: Text(
-              data['title'] ?? '',
+              title,
               style: const TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: 16,
@@ -2309,16 +2859,17 @@ class OrangeDiseaseDetails extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           TextField(
-            controller: TextEditingController(text: data['description'] ?? ''),
+            controller: TextEditingController(text: description),
             enabled: false,
             maxLines: null,
-            textAlign: TextAlign.center, // Aligns text to the center
-            style: const TextStyle(
+            style: TextStyle(
               color: Colors.black87,
               fontSize: 16,
               fontWeight: FontWeight.w400,
               letterSpacing: 0.5,
+              fontFamily: showUrdu ? 'NotoNastaliqUrdu' : null,
             ),
+            textDirection: showUrdu ? TextDirection.rtl : TextDirection.ltr,
             decoration: InputDecoration(
               filled: true,
               fillColor: Colors.white.withOpacity(0.9),
@@ -2340,7 +2891,7 @@ class OrangeDiseaseDetails extends StatelessWidget {
                 color: Colors.blueAccent,
                 size: 24,
               ),
-              labelText: 'Description',
+              labelText: showUrdu ? 'تفصیل' : 'Description',
               labelStyle: TextStyle(
                 color: Colors.blueAccent.withOpacity(0.7),
                 fontWeight: FontWeight.w600,
@@ -2356,7 +2907,7 @@ class OrangeDiseaseDetails extends StatelessWidget {
                   width: 2,
                 ),
               ),
-              hintText: 'No description available',
+              hintText: showUrdu ? 'تفصیل دستیاب نہیں' : 'No description available',
               hintStyle: TextStyle(
                 color: Colors.grey.withOpacity(0.5),
                 fontStyle: FontStyle.italic,
@@ -2369,8 +2920,17 @@ class OrangeDiseaseDetails extends StatelessWidget {
   }
 }
 
-class PeachDiseaseDetails extends StatelessWidget {
+class PeachDiseaseDetails extends StatefulWidget {
   const PeachDiseaseDetails({super.key});
+
+  @override
+  State<PeachDiseaseDetails> createState() => _PeachDiseaseDetailsState();
+}
+
+class _PeachDiseaseDetailsState extends State<PeachDiseaseDetails> {
+  bool showUrdu = false;
+  bool isLoading = false;
+  final translator = GoogleTranslator();
 
   final List<Map<String, String>> peachData = const [
     {
@@ -2400,23 +2960,72 @@ class PeachDiseaseDetails extends StatelessWidget {
     },
   ];
 
+final Map<String, String> _translationCache = {};
+
+  Future<void> _toggleLanguage() async {
+    setState(() => isLoading = true);
+    showUrdu = !showUrdu;
+    
+    // Only translate if we don't have cached translations
+    if (showUrdu) {
+      for (var disease in peachData) {
+        final key = '${disease['title']}|${disease['description']}';
+        if (!_translationCache.containsKey(key)) {
+          final titleTranslation = await translator.translate(
+            disease['title']!,
+            to: 'ur'
+          );
+          final descTranslation = await translator.translate(
+            disease['description']!,
+            to: 'ur'
+          );
+          _translationCache[key] = '$titleTranslation|$descTranslation';
+        }
+      }
+    }
+    
+    setState(() => isLoading = false);
+  }
+
+  String _getTranslatedTitle(Map<String, String> disease) {
+    if (!showUrdu) return disease['title']!;
+    final key = '${disease['title']}|${disease['description']}';
+    return _translationCache[key]?.split('|').first ?? disease['title']!;
+  }
+
+  String _getTranslatedDescription(Map<String, String> disease) {
+    if (!showUrdu) return disease['description']!;
+    final key = '${disease['title']}|${disease['description']}';
+    return _translationCache[key]?.split('|').last ?? disease['description']!;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Peach Disease Details'),
         backgroundColor: const Color.fromARGB(255, 153, 232, 156),
+actions: [
+  IconButton(
+    icon: Icon(showUrdu ? Icons.language : Icons.translate),
+    onPressed: isLoading ? null : _toggleLanguage,
+    tooltip: showUrdu ? 'Show English' : 'Translate to Urdu',
+  ),
+],
+
       ),
       body: GradientBackground(
         child: Center(
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: peachData
-                  .map((data) => _buildDiseaseContainer(context, data))
-                  .toList(),
-            ),
-          ),
+          child: isLoading
+              ? const CircularProgressIndicator()
+              : SingleChildScrollView(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: peachData
+                        .map((data) => _buildDiseaseContainer(context, data))
+                        .toList(),
+                  ),
+                ),
         ),
       ),
     );
@@ -2424,6 +3033,9 @@ class PeachDiseaseDetails extends StatelessWidget {
 
   Widget _buildDiseaseContainer(
       BuildContext context, Map<String, String> data) {
+    final title = _getTranslatedTitle(data);
+    final description = _getTranslatedDescription(data);
+
     return Container(
       margin: const EdgeInsets.all(12),
       padding: const EdgeInsets.all(12),
@@ -2446,14 +3058,14 @@ class PeachDiseaseDetails extends StatelessWidget {
             data['image'] ?? '',
             height: 150,
             width: double.infinity,
-            fit: BoxFit.cover,
+            fit: BoxFit.contain,
           ),
           const SizedBox(height: 8),
           Container(
             alignment: Alignment.center,
             width: double.infinity,
             child: Text(
-              data['title'] ?? '',
+              title,
               style: const TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: 16,
@@ -2463,16 +3075,17 @@ class PeachDiseaseDetails extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           TextField(
-            controller: TextEditingController(text: data['description'] ?? ''),
+            controller: TextEditingController(text: description),
             enabled: false,
             maxLines: null,
-            textAlign: TextAlign.center, // Aligns text to the center
-            style: const TextStyle(
+            style: TextStyle(
               color: Colors.black87,
               fontSize: 16,
               fontWeight: FontWeight.w400,
               letterSpacing: 0.5,
+              fontFamily: showUrdu ? 'NotoNastaliqUrdu' : null,
             ),
+            textDirection: showUrdu ? TextDirection.rtl : TextDirection.ltr,
             decoration: InputDecoration(
               filled: true,
               fillColor: Colors.white.withOpacity(0.9),
@@ -2494,7 +3107,7 @@ class PeachDiseaseDetails extends StatelessWidget {
                 color: Colors.blueAccent,
                 size: 24,
               ),
-              labelText: 'Description',
+              labelText: showUrdu ? 'تفصیل' : 'Description',
               labelStyle: TextStyle(
                 color: Colors.blueAccent.withOpacity(0.7),
                 fontWeight: FontWeight.w600,
@@ -2510,7 +3123,7 @@ class PeachDiseaseDetails extends StatelessWidget {
                   width: 2,
                 ),
               ),
-              hintText: 'No description available',
+              hintText: showUrdu ? 'تفصیل دستیاب نہیں' : 'No description available',
               hintStyle: TextStyle(
                 color: Colors.grey.withOpacity(0.5),
                 fontStyle: FontStyle.italic,
@@ -2523,8 +3136,17 @@ class PeachDiseaseDetails extends StatelessWidget {
   }
 }
 
-class PomegranateDiseaseDetails extends StatelessWidget {
+class PomegranateDiseaseDetails extends StatefulWidget {
   const PomegranateDiseaseDetails({super.key});
+
+  @override
+  State<PomegranateDiseaseDetails> createState() => _PomegranateDiseaseDetailsState();
+}
+
+class _PomegranateDiseaseDetailsState extends State<PomegranateDiseaseDetails> {
+  bool showUrdu = false;
+  bool isLoading = false;
+  final translator = GoogleTranslator();
 
   final List<Map<String, String>> pomegranateData = const [
     {
@@ -2550,23 +3172,72 @@ class PomegranateDiseaseDetails extends StatelessWidget {
     },
   ];
 
+final Map<String, String> _translationCache = {};
+
+  Future<void> _toggleLanguage() async {
+    setState(() => isLoading = true);
+    showUrdu = !showUrdu;
+    
+    // Only translate if we don't have cached translations
+    if (showUrdu) {
+      for (var disease in pomegranateData) {
+        final key = '${disease['title']}|${disease['description']}';
+        if (!_translationCache.containsKey(key)) {
+          final titleTranslation = await translator.translate(
+            disease['title']!,
+            to: 'ur'
+          );
+          final descTranslation = await translator.translate(
+            disease['description']!,
+            to: 'ur'
+          );
+          _translationCache[key] = '$titleTranslation|$descTranslation';
+        }
+      }
+    }
+    
+    setState(() => isLoading = false);
+  }
+
+  String _getTranslatedTitle(Map<String, String> disease) {
+    if (!showUrdu) return disease['title']!;
+    final key = '${disease['title']}|${disease['description']}';
+    return _translationCache[key]?.split('|').first ?? disease['title']!;
+  }
+
+  String _getTranslatedDescription(Map<String, String> disease) {
+    if (!showUrdu) return disease['description']!;
+    final key = '${disease['title']}|${disease['description']}';
+    return _translationCache[key]?.split('|').last ?? disease['description']!;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Pomegranate Disease Details'),
         backgroundColor: const Color.fromARGB(255, 153, 232, 156),
+actions: [
+  IconButton(
+    icon: Icon(showUrdu ? Icons.language : Icons.translate),
+    onPressed: isLoading ? null : _toggleLanguage,
+    tooltip: showUrdu ? 'Show English' : 'Translate to Urdu',
+  ),
+],
+
       ),
       body: GradientBackground(
         child: Center(
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: pomegranateData
-                  .map((data) => _buildDiseaseContainer(context, data))
-                  .toList(),
-            ),
-          ),
+          child: isLoading
+              ? const CircularProgressIndicator()
+              : SingleChildScrollView(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: pomegranateData
+                        .map((data) => _buildDiseaseContainer(context, data))
+                        .toList(),
+                  ),
+                ),
         ),
       ),
     );
@@ -2574,6 +3245,9 @@ class PomegranateDiseaseDetails extends StatelessWidget {
 
   Widget _buildDiseaseContainer(
       BuildContext context, Map<String, String> data) {
+    final title = _getTranslatedTitle(data);
+    final description = _getTranslatedDescription(data);
+
     return Container(
       margin: const EdgeInsets.all(12),
       padding: const EdgeInsets.all(12),
@@ -2596,14 +3270,14 @@ class PomegranateDiseaseDetails extends StatelessWidget {
             data['image'] ?? '',
             height: 150,
             width: double.infinity,
-            fit: BoxFit.cover,
+            fit: BoxFit.contain,
           ),
           const SizedBox(height: 8),
           Container(
             alignment: Alignment.center,
             width: double.infinity,
             child: Text(
-              data['title'] ?? '',
+              title,
               style: const TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: 16,
@@ -2613,16 +3287,17 @@ class PomegranateDiseaseDetails extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           TextField(
-            controller: TextEditingController(text: data['description'] ?? ''),
+            controller: TextEditingController(text: description),
             enabled: false,
             maxLines: null,
-            textAlign: TextAlign.center, // Aligns text to the center
-            style: const TextStyle(
+            style: TextStyle(
               color: Colors.black87,
               fontSize: 16,
               fontWeight: FontWeight.w400,
               letterSpacing: 0.5,
+              fontFamily: showUrdu ? 'NotoNastaliqUrdu' : null,
             ),
+            textDirection: showUrdu ? TextDirection.rtl : TextDirection.ltr,
             decoration: InputDecoration(
               filled: true,
               fillColor: Colors.white.withOpacity(0.9),
@@ -2644,7 +3319,7 @@ class PomegranateDiseaseDetails extends StatelessWidget {
                 color: Colors.blueAccent,
                 size: 24,
               ),
-              labelText: 'Description',
+              labelText: showUrdu ? 'تفصیل' : 'Description',
               labelStyle: TextStyle(
                 color: Colors.blueAccent.withOpacity(0.7),
                 fontWeight: FontWeight.w600,
@@ -2660,7 +3335,7 @@ class PomegranateDiseaseDetails extends StatelessWidget {
                   width: 2,
                 ),
               ),
-              hintText: 'No description available',
+              hintText: showUrdu ? 'تفصیل دستیاب نہیں' : 'No description available',
               hintStyle: TextStyle(
                 color: Colors.grey.withOpacity(0.5),
                 fontStyle: FontStyle.italic,
@@ -2673,8 +3348,18 @@ class PomegranateDiseaseDetails extends StatelessWidget {
   }
 }
 
-class PotatoDiseaseDetails extends StatelessWidget {
+class PotatoDiseaseDetails extends StatefulWidget {
   const PotatoDiseaseDetails({super.key});
+
+  @override
+  State<PotatoDiseaseDetails> createState() => _PotatoDiseaseDetailsState();
+}
+
+class _PotatoDiseaseDetailsState extends State<PotatoDiseaseDetails> {
+  bool showUrdu = false;
+  bool isLoading = false;
+  final translator = GoogleTranslator();
+
 
   final List<Map<String, String>> potatoData = const [
     {
@@ -2756,23 +3441,72 @@ class PotatoDiseaseDetails extends StatelessWidget {
     },
   ];
 
+final Map<String, String> _translationCache = {};
+
+  Future<void> _toggleLanguage() async {
+    setState(() => isLoading = true);
+    showUrdu = !showUrdu;
+    
+    // Only translate if we don't have cached translations
+    if (showUrdu) {
+      for (var disease in potatoData) {
+        final key = '${disease['title']}|${disease['description']}';
+        if (!_translationCache.containsKey(key)) {
+          final titleTranslation = await translator.translate(
+            disease['title']!,
+            to: 'ur'
+          );
+          final descTranslation = await translator.translate(
+            disease['description']!,
+            to: 'ur'
+          );
+          _translationCache[key] = '$titleTranslation|$descTranslation';
+        }
+      }
+    }
+    
+    setState(() => isLoading = false);
+  }
+
+  String _getTranslatedTitle(Map<String, String> disease) {
+    if (!showUrdu) return disease['title']!;
+    final key = '${disease['title']}|${disease['description']}';
+    return _translationCache[key]?.split('|').first ?? disease['title']!;
+  }
+
+  String _getTranslatedDescription(Map<String, String> disease) {
+    if (!showUrdu) return disease['description']!;
+    final key = '${disease['title']}|${disease['description']}';
+    return _translationCache[key]?.split('|').last ?? disease['description']!;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Potato Disease Details'),
         backgroundColor: const Color.fromARGB(255, 153, 232, 156),
+actions: [
+  IconButton(
+    icon: Icon(showUrdu ? Icons.language : Icons.translate),
+    onPressed: isLoading ? null : _toggleLanguage,
+    tooltip: showUrdu ? 'Show English' : 'Translate to Urdu',
+  ),
+],
+
       ),
       body: GradientBackground(
         child: Center(
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: potatoData
-                  .map((data) => _buildDiseaseContainer(context, data))
-                  .toList(),
-            ),
-          ),
+          child: isLoading
+              ? const CircularProgressIndicator()
+              : SingleChildScrollView(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: potatoData
+                        .map((data) => _buildDiseaseContainer(context, data))
+                        .toList(),
+                  ),
+                ),
         ),
       ),
     );
@@ -2780,6 +3514,9 @@ class PotatoDiseaseDetails extends StatelessWidget {
 
   Widget _buildDiseaseContainer(
       BuildContext context, Map<String, String> data) {
+    final title = _getTranslatedTitle(data);
+    final description = _getTranslatedDescription(data);
+
     return Container(
       margin: const EdgeInsets.all(12),
       padding: const EdgeInsets.all(12),
@@ -2802,14 +3539,14 @@ class PotatoDiseaseDetails extends StatelessWidget {
             data['image'] ?? '',
             height: 150,
             width: double.infinity,
-            fit: BoxFit.cover,
+            fit: BoxFit.contain,
           ),
           const SizedBox(height: 8),
           Container(
             alignment: Alignment.center,
             width: double.infinity,
             child: Text(
-              data['title'] ?? '',
+              title,
               style: const TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: 16,
@@ -2819,16 +3556,17 @@ class PotatoDiseaseDetails extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           TextField(
-            controller: TextEditingController(text: data['description'] ?? ''),
+            controller: TextEditingController(text: description),
             enabled: false,
             maxLines: null,
-            textAlign: TextAlign.center, // Aligns text to the center
-            style: const TextStyle(
+            style: TextStyle(
               color: Colors.black87,
               fontSize: 16,
               fontWeight: FontWeight.w400,
               letterSpacing: 0.5,
+              fontFamily: showUrdu ? 'NotoNastaliqUrdu' : null,
             ),
+            textDirection: showUrdu ? TextDirection.rtl : TextDirection.ltr,
             decoration: InputDecoration(
               filled: true,
               fillColor: Colors.white.withOpacity(0.9),
@@ -2850,7 +3588,7 @@ class PotatoDiseaseDetails extends StatelessWidget {
                 color: Colors.blueAccent,
                 size: 24,
               ),
-              labelText: 'Description',
+              labelText: showUrdu ? 'تفصیل' : 'Description',
               labelStyle: TextStyle(
                 color: Colors.blueAccent.withOpacity(0.7),
                 fontWeight: FontWeight.w600,
@@ -2866,7 +3604,7 @@ class PotatoDiseaseDetails extends StatelessWidget {
                   width: 2,
                 ),
               ),
-              hintText: 'No description available',
+              hintText: showUrdu ? 'تفصیل دستیاب نہیں' : 'No description available',
               hintStyle: TextStyle(
                 color: Colors.grey.withOpacity(0.5),
                 fontStyle: FontStyle.italic,
@@ -2879,8 +3617,17 @@ class PotatoDiseaseDetails extends StatelessWidget {
   }
 }
 
-class RiceDiseaseDetails extends StatelessWidget {
+class RiceDiseaseDetails extends StatefulWidget {
   const RiceDiseaseDetails({super.key});
+
+  @override
+  State<RiceDiseaseDetails> createState() => _RiceDiseaseDetailsState();
+}
+
+class _RiceDiseaseDetailsState extends State<RiceDiseaseDetails> {
+  bool showUrdu = false;
+  bool isLoading = false;
+  final translator = GoogleTranslator();
 
   final List<Map<String, String>> riceData = const [
     {
@@ -2963,23 +3710,72 @@ class RiceDiseaseDetails extends StatelessWidget {
     },
   ];
 
+final Map<String, String> _translationCache = {};
+
+  Future<void> _toggleLanguage() async {
+    setState(() => isLoading = true);
+    showUrdu = !showUrdu;
+    
+    // Only translate if we don't have cached translations
+    if (showUrdu) {
+      for (var disease in riceData) {
+        final key = '${disease['title']}|${disease['description']}';
+        if (!_translationCache.containsKey(key)) {
+          final titleTranslation = await translator.translate(
+            disease['title']!,
+            to: 'ur'
+          );
+          final descTranslation = await translator.translate(
+            disease['description']!,
+            to: 'ur'
+          );
+          _translationCache[key] = '$titleTranslation|$descTranslation';
+        }
+      }
+    }
+    
+    setState(() => isLoading = false);
+  }
+
+  String _getTranslatedTitle(Map<String, String> disease) {
+    if (!showUrdu) return disease['title']!;
+    final key = '${disease['title']}|${disease['description']}';
+    return _translationCache[key]?.split('|').first ?? disease['title']!;
+  }
+
+  String _getTranslatedDescription(Map<String, String> disease) {
+    if (!showUrdu) return disease['description']!;
+    final key = '${disease['title']}|${disease['description']}';
+    return _translationCache[key]?.split('|').last ?? disease['description']!;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Rice Disease Details'),
         backgroundColor: const Color.fromARGB(255, 153, 232, 156),
+actions: [
+  IconButton(
+    icon: Icon(showUrdu ? Icons.language : Icons.translate),
+    onPressed: isLoading ? null : _toggleLanguage,
+    tooltip: showUrdu ? 'Show English' : 'Translate to Urdu',
+  ),
+],
+
       ),
       body: GradientBackground(
         child: Center(
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: riceData
-                  .map((data) => _buildDiseaseContainer(context, data))
-                  .toList(),
-            ),
-          ),
+          child: isLoading
+              ? const CircularProgressIndicator()
+              : SingleChildScrollView(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: riceData
+                        .map((data) => _buildDiseaseContainer(context, data))
+                        .toList(),
+                  ),
+                ),
         ),
       ),
     );
@@ -2987,6 +3783,9 @@ class RiceDiseaseDetails extends StatelessWidget {
 
   Widget _buildDiseaseContainer(
       BuildContext context, Map<String, String> data) {
+    final title = _getTranslatedTitle(data);
+    final description = _getTranslatedDescription(data);
+
     return Container(
       margin: const EdgeInsets.all(12),
       padding: const EdgeInsets.all(12),
@@ -3009,14 +3808,14 @@ class RiceDiseaseDetails extends StatelessWidget {
             data['image'] ?? '',
             height: 150,
             width: double.infinity,
-            fit: BoxFit.cover,
+            fit: BoxFit.contain,
           ),
           const SizedBox(height: 8),
           Container(
             alignment: Alignment.center,
             width: double.infinity,
             child: Text(
-              data['title'] ?? '',
+              title,
               style: const TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: 16,
@@ -3026,16 +3825,17 @@ class RiceDiseaseDetails extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           TextField(
-            controller: TextEditingController(text: data['description'] ?? ''),
+            controller: TextEditingController(text: description),
             enabled: false,
             maxLines: null,
-            textAlign: TextAlign.center, // Aligns text to the center
-            style: const TextStyle(
+            style: TextStyle(
               color: Colors.black87,
               fontSize: 16,
               fontWeight: FontWeight.w400,
               letterSpacing: 0.5,
+              fontFamily: showUrdu ? 'NotoNastaliqUrdu' : null,
             ),
+            textDirection: showUrdu ? TextDirection.rtl : TextDirection.ltr,
             decoration: InputDecoration(
               filled: true,
               fillColor: Colors.white.withOpacity(0.9),
@@ -3057,7 +3857,7 @@ class RiceDiseaseDetails extends StatelessWidget {
                 color: Colors.blueAccent,
                 size: 24,
               ),
-              labelText: 'Description',
+              labelText: showUrdu ? 'تفصیل' : 'Description',
               labelStyle: TextStyle(
                 color: Colors.blueAccent.withOpacity(0.7),
                 fontWeight: FontWeight.w600,
@@ -3073,7 +3873,7 @@ class RiceDiseaseDetails extends StatelessWidget {
                   width: 2,
                 ),
               ),
-              hintText: 'No description available',
+              hintText: showUrdu ? 'تفصیل دستیاب نہیں' : 'No description available',
               hintStyle: TextStyle(
                 color: Colors.grey.withOpacity(0.5),
                 fontStyle: FontStyle.italic,
@@ -3086,8 +3886,17 @@ class RiceDiseaseDetails extends StatelessWidget {
   }
 }
 
-class RoseDiseaseDetails extends StatelessWidget {
+class RoseDiseaseDetails extends StatefulWidget {
   const RoseDiseaseDetails({super.key});
+
+  @override
+  State<RoseDiseaseDetails> createState() => _RoseDiseaseDetailsState();
+}
+
+class _RoseDiseaseDetailsState extends State<RoseDiseaseDetails> {
+  bool showUrdu = false;
+  bool isLoading = false;
+  final translator = GoogleTranslator();
 
   final List<Map<String, String>> roseData = const [
     {
@@ -3141,23 +3950,72 @@ class RoseDiseaseDetails extends StatelessWidget {
     },
   ];
 
+final Map<String, String> _translationCache = {};
+
+  Future<void> _toggleLanguage() async {
+    setState(() => isLoading = true);
+    showUrdu = !showUrdu;
+    
+    // Only translate if we don't have cached translations
+    if (showUrdu) {
+      for (var disease in roseData) {
+        final key = '${disease['title']}|${disease['description']}';
+        if (!_translationCache.containsKey(key)) {
+          final titleTranslation = await translator.translate(
+            disease['title']!,
+            to: 'ur'
+          );
+          final descTranslation = await translator.translate(
+            disease['description']!,
+            to: 'ur'
+          );
+          _translationCache[key] = '$titleTranslation|$descTranslation';
+        }
+      }
+    }
+    
+    setState(() => isLoading = false);
+  }
+
+  String _getTranslatedTitle(Map<String, String> disease) {
+    if (!showUrdu) return disease['title']!;
+    final key = '${disease['title']}|${disease['description']}';
+    return _translationCache[key]?.split('|').first ?? disease['title']!;
+  }
+
+  String _getTranslatedDescription(Map<String, String> disease) {
+    if (!showUrdu) return disease['description']!;
+    final key = '${disease['title']}|${disease['description']}';
+    return _translationCache[key]?.split('|').last ?? disease['description']!;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Rose Disease Details'),
         backgroundColor: const Color.fromARGB(255, 153, 232, 156),
+actions: [
+  IconButton(
+    icon: Icon(showUrdu ? Icons.language : Icons.translate),
+    onPressed: isLoading ? null : _toggleLanguage,
+    tooltip: showUrdu ? 'Show English' : 'Translate to Urdu',
+  ),
+],
+
       ),
       body: GradientBackground(
         child: Center(
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: roseData
-                  .map((data) => _buildDiseaseContainer(context, data))
-                  .toList(),
-            ),
-          ),
+          child: isLoading
+              ? const CircularProgressIndicator()
+              : SingleChildScrollView(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: roseData
+                        .map((data) => _buildDiseaseContainer(context, data))
+                        .toList(),
+                  ),
+                ),
         ),
       ),
     );
@@ -3165,6 +4023,9 @@ class RoseDiseaseDetails extends StatelessWidget {
 
   Widget _buildDiseaseContainer(
       BuildContext context, Map<String, String> data) {
+    final title = _getTranslatedTitle(data);
+    final description = _getTranslatedDescription(data);
+
     return Container(
       margin: const EdgeInsets.all(12),
       padding: const EdgeInsets.all(12),
@@ -3187,14 +4048,14 @@ class RoseDiseaseDetails extends StatelessWidget {
             data['image'] ?? '',
             height: 150,
             width: double.infinity,
-            fit: BoxFit.cover,
+            fit: BoxFit.contain,
           ),
           const SizedBox(height: 8),
           Container(
             alignment: Alignment.center,
             width: double.infinity,
             child: Text(
-              data['title'] ?? '',
+              title,
               style: const TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: 16,
@@ -3204,16 +4065,17 @@ class RoseDiseaseDetails extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           TextField(
-            controller: TextEditingController(text: data['description'] ?? ''),
+            controller: TextEditingController(text: description),
             enabled: false,
             maxLines: null,
-            textAlign: TextAlign.center, // Aligns text to the center
-            style: const TextStyle(
+            style: TextStyle(
               color: Colors.black87,
               fontSize: 16,
               fontWeight: FontWeight.w400,
               letterSpacing: 0.5,
+              fontFamily: showUrdu ? 'NotoNastaliqUrdu' : null,
             ),
+            textDirection: showUrdu ? TextDirection.rtl : TextDirection.ltr,
             decoration: InputDecoration(
               filled: true,
               fillColor: Colors.white.withOpacity(0.9),
@@ -3235,7 +4097,7 @@ class RoseDiseaseDetails extends StatelessWidget {
                 color: Colors.blueAccent,
                 size: 24,
               ),
-              labelText: 'Description',
+              labelText: showUrdu ? 'تفصیل' : 'Description',
               labelStyle: TextStyle(
                 color: Colors.blueAccent.withOpacity(0.7),
                 fontWeight: FontWeight.w600,
@@ -3251,7 +4113,7 @@ class RoseDiseaseDetails extends StatelessWidget {
                   width: 2,
                 ),
               ),
-              hintText: 'No description available',
+              hintText: showUrdu ? 'تفصیل دستیاب نہیں' : 'No description available',
               hintStyle: TextStyle(
                 color: Colors.grey.withOpacity(0.5),
                 fontStyle: FontStyle.italic,
@@ -3264,8 +4126,17 @@ class RoseDiseaseDetails extends StatelessWidget {
   }
 }
 
-class StrawberryDiseaseDetails extends StatelessWidget {
+class StrawberryDiseaseDetails extends StatefulWidget {
   const StrawberryDiseaseDetails({super.key});
+
+  @override
+  State<StrawberryDiseaseDetails> createState() => _StrawberryDiseaseDetailsState();
+}
+
+class _StrawberryDiseaseDetailsState extends State<StrawberryDiseaseDetails> {
+  bool showUrdu = false;
+  bool isLoading = false;
+  final translator = GoogleTranslator();
 
   // Cucumber disease data
   final List<Map<String, String>> strawberryData = const [
@@ -3296,23 +4167,72 @@ class StrawberryDiseaseDetails extends StatelessWidget {
     },
   ];
 
+ final Map<String, String> _translationCache = {};
+
+  Future<void> _toggleLanguage() async {
+    setState(() => isLoading = true);
+    showUrdu = !showUrdu;
+    
+    // Only translate if we don't have cached translations
+    if (showUrdu) {
+      for (var disease in strawberryData) {
+        final key = '${disease['title']}|${disease['description']}';
+        if (!_translationCache.containsKey(key)) {
+          final titleTranslation = await translator.translate(
+            disease['title']!,
+            to: 'ur'
+          );
+          final descTranslation = await translator.translate(
+            disease['description']!,
+            to: 'ur'
+          );
+          _translationCache[key] = '$titleTranslation|$descTranslation';
+        }
+      }
+    }
+    
+    setState(() => isLoading = false);
+  }
+
+  String _getTranslatedTitle(Map<String, String> disease) {
+    if (!showUrdu) return disease['title']!;
+    final key = '${disease['title']}|${disease['description']}';
+    return _translationCache[key]?.split('|').first ?? disease['title']!;
+  }
+
+  String _getTranslatedDescription(Map<String, String> disease) {
+    if (!showUrdu) return disease['description']!;
+    final key = '${disease['title']}|${disease['description']}';
+    return _translationCache[key]?.split('|').last ?? disease['description']!;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Strawberry Disease Details'),
         backgroundColor: const Color.fromARGB(255, 153, 232, 156),
+actions: [
+  IconButton(
+    icon: Icon(showUrdu ? Icons.language : Icons.translate),
+    onPressed: isLoading ? null : _toggleLanguage,
+    tooltip: showUrdu ? 'Show English' : 'Translate to Urdu',
+  ),
+],
+
       ),
       body: GradientBackground(
         child: Center(
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: strawberryData
-                  .map((data) => _buildDiseaseContainer(context, data))
-                  .toList(),
-            ),
-          ),
+          child: isLoading
+              ? const CircularProgressIndicator()
+              : SingleChildScrollView(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: strawberryData
+                        .map((data) => _buildDiseaseContainer(context, data))
+                        .toList(),
+                  ),
+                ),
         ),
       ),
     );
@@ -3320,6 +4240,9 @@ class StrawberryDiseaseDetails extends StatelessWidget {
 
   Widget _buildDiseaseContainer(
       BuildContext context, Map<String, String> data) {
+    final title = _getTranslatedTitle(data);
+    final description = _getTranslatedDescription(data);
+
     return Container(
       margin: const EdgeInsets.all(12),
       padding: const EdgeInsets.all(12),
@@ -3342,14 +4265,14 @@ class StrawberryDiseaseDetails extends StatelessWidget {
             data['image'] ?? '',
             height: 150,
             width: double.infinity,
-            fit: BoxFit.cover,
+            fit: BoxFit.contain,
           ),
           const SizedBox(height: 8),
           Container(
             alignment: Alignment.center,
             width: double.infinity,
             child: Text(
-              data['title'] ?? '',
+              title,
               style: const TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: 16,
@@ -3359,16 +4282,17 @@ class StrawberryDiseaseDetails extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           TextField(
-            controller: TextEditingController(text: data['description'] ?? ''),
+            controller: TextEditingController(text: description),
             enabled: false,
             maxLines: null,
-            textAlign: TextAlign.center, // Aligns text to the center
-            style: const TextStyle(
+            style: TextStyle(
               color: Colors.black87,
               fontSize: 16,
               fontWeight: FontWeight.w400,
               letterSpacing: 0.5,
+              fontFamily: showUrdu ? 'NotoNastaliqUrdu' : null,
             ),
+            textDirection: showUrdu ? TextDirection.rtl : TextDirection.ltr,
             decoration: InputDecoration(
               filled: true,
               fillColor: Colors.white.withOpacity(0.9),
@@ -3390,7 +4314,7 @@ class StrawberryDiseaseDetails extends StatelessWidget {
                 color: Colors.blueAccent,
                 size: 24,
               ),
-              labelText: 'Description',
+              labelText: showUrdu ? 'تفصیل' : 'Description',
               labelStyle: TextStyle(
                 color: Colors.blueAccent.withOpacity(0.7),
                 fontWeight: FontWeight.w600,
@@ -3406,7 +4330,7 @@ class StrawberryDiseaseDetails extends StatelessWidget {
                   width: 2,
                 ),
               ),
-              hintText: 'No description available',
+              hintText: showUrdu ? 'تفصیل دستیاب نہیں' : 'No description available',
               hintStyle: TextStyle(
                 color: Colors.grey.withOpacity(0.5),
                 fontStyle: FontStyle.italic,
@@ -3419,86 +4343,135 @@ class StrawberryDiseaseDetails extends StatelessWidget {
   }
 }
 
-class SugarcaneDiseaseDetails extends StatelessWidget {
+class SugarcaneDiseaseDetails extends StatefulWidget {
   const SugarcaneDiseaseDetails({super.key});
+
+  @override
+  State<SugarcaneDiseaseDetails> createState() => _SugarcaneDiseaseDetailsState();
+}
+
+class _SugarcaneDiseaseDetailsState extends State<SugarcaneDiseaseDetails> {
+  bool showUrdu = false;
+  bool isLoading = false;
+  final translator = GoogleTranslator();
 
   final List<Map<String, String>> sugarcaneData = const [
     {
       'image': 'assets/SugercaneRedRot.jpeg',
       'title': 'Red Rot',
       'description': 'A major fungal disease caused by *Colletotrichum falcatum*, known as the "cancer of sugarcane" due to its destructive impact on crops:\n\n'
-          '🌿 STALK SYMPTOMS:'
-          '\n• Leaves start drying from the tips downward (top drying)'
-          '\n• Red coloration inside stalk with crosswise white patches (typical sign)'
-          '\n• Sour or alcoholic smell when stalk is split open'
-          '\n• Hollow, brittle, and rotting internodes'
-          '\n\n🍃 LEAF SYMPTOMS:'
-          '\n• Yellowing of top leaves followed by drooping'
-          '\n• Leaves may break or dry prematurely'
-          '\n\n🌧️ WHEN IT SPREADS:'
-          '\n• Hot and humid conditions (25–35°C) with stagnant water'
-          '\n• Spread through infected setts (planting material) and water'
-          '\n• Poor drainage and continuous sugarcane cropping increase risk'
-          '\n\n✅ HOW TO CONTROL IT:'
-          '\n• Use disease-free and resistant varieties (e.g., Co 0238, Co 86032)'
-          '\n• Treat seed setts with fungicides (e.g., carbendazim or bavistin)'
-          '\n• Improve field drainage and avoid water stagnation'
-          '\n• Follow crop rotation and avoid ratooning infected fields'
-          '\n• Remove and burn infected plants to prevent spread'
-          '\n\n⚠️ NOTE: Red rot can reduce yield by 30–70% – early sett treatment and field hygiene are critical!',
+      '🌿 STALK SYMPTOMS:'
+      '\n• Leaves start drying from the tips downward (top drying)'
+      '\n• Red coloration inside stalk with crosswise white patches (typical sign)'
+      '\n• Sour or alcoholic smell when stalk is split open'
+      '\n• Hollow, brittle, and rotting internodes'
+      '\n\n🍃 LEAF SYMPTOMS:'
+      '\n• Yellowing of top leaves followed by drooping'
+      '\n• Leaves may break or dry prematurely'
+      '\n\n🌧️ WHEN IT SPREADS:'
+      '\n• Hot and humid conditions (25–35°C) with stagnant water'
+      '\n• Spread through infected setts (planting material) and water'
+      '\n• Poor drainage and continuous sugarcane cropping increase risk'
+      '\n\n✅ HOW TO CONTROL IT:'
+      '\n• Use disease-free and resistant varieties (e.g., Co 0238, Co 86032)'
+      '\n• Treat seed setts with fungicides (e.g., carbendazim or bavistin)'
+      '\n• Improve field drainage and avoid water stagnation'
+      '\n• Follow crop rotation and avoid ratooning infected fields'
+      '\n• Remove and burn infected plants to prevent spread'
+      '\n\n⚠️ NOTE: Red rot can reduce yield by 30–70% – early sett treatment and field hygiene are critical!',
     },
     {
       'image': 'assets/SugarcaneRust.jpeg',
       'title': 'Rust',
-      'description': 'A fungal disease caused by *Puccinia melanocephala* (Brown Rust), affecting sugarcane leaves and reducing crop productivity:\n\n'
-          '🍃 LEAF SYMPTOMS:'
-          '\n• Small, elongated orange-brown pustules (rust spots) mainly on upper leaf surface'
-          '\n• Spots cluster together forming large rusted patches'
-          '\n• Yellowing and drying of leaf tissue around pustules'
-          '\n• Premature leaf death in severe infections'
-          '\n\n🌿 PLANT EFFECTS:'
-          '\n• Reduced photosynthesis due to leaf loss'
-          '\n• Stunted growth and poor sugar content in canes'
-          '\n• Greater damage in young, actively growing plants'
-          '\n\n🌧️ WHEN IT SPREADS:'
-          '\n• Warm, moist conditions (20–30°C) favor spread'
-          '\n• Fungal spores spread through wind, rain, and infected leaves'
-          '\n• Overcrowded fields and poor airflow increase infection risk'
-          '\n\n✅ HOW TO CONTROL IT:'
-          '\n• Plant rust-resistant sugarcane varieties (e.g., Co 86032, CoJ 64)'
-          '\n• Remove and destroy infected leaves early'
-          '\n• Apply fungicides like propiconazole or mancozeb at early stage'
-          '\n• Avoid dense planting; improve air movement with proper spacing'
-          '\n• Practice crop rotation and field sanitation'
-          '\n\n⚠️ NOTE: While not usually fatal, rust significantly reduces yield and sugar quality – monitor fields regularly!',
+      'description':
+          'A fungal disease caused by *Puccinia melanocephala* (Brown Rust), affecting sugarcane leaves and reducing crop productivity:\n\n'
+      '🍃 LEAF SYMPTOMS:'
+      '\n• Small, elongated orange-brown pustules (rust spots) mainly on upper leaf surface'
+      '\n• Spots cluster together forming large rusted patches'
+      '\n• Yellowing and drying of leaf tissue around pustules'
+      '\n• Premature leaf death in severe infections'
+      '\n\n🌿 PLANT EFFECTS:'
+      '\n• Reduced photosynthesis due to leaf loss'
+      '\n• Stunted growth and poor sugar content in canes'
+      '\n• Greater damage in young, actively growing plants'
+      '\n\n🌧️ WHEN IT SPREADS:'
+      '\n• Warm, moist conditions (20–30°C) favor spread'
+      '\n• Fungal spores spread through wind, rain, and infected leaves'
+      '\n• Overcrowded fields and poor airflow increase infection risk'
+      '\n\n✅ HOW TO CONTROL IT:'
+      '\n• Plant rust-resistant sugarcane varieties (e.g., Co 86032, CoJ 64)'
+      '\n• Remove and destroy infected leaves early'
+      '\n• Apply fungicides like propiconazole or mancozeb at early stage'
+      '\n• Avoid dense planting; improve air movement with proper spacing'
+      '\n• Practice crop rotation and field sanitation'
+      '\n\n⚠️ NOTE: While not usually fatal, rust significantly reduces yield and sugar quality – monitor fields regularly!',
     },
     {
       'image': 'assets/SugarcaneLeafYellow.jpeg',
       'title': 'Yellow',
       'description': 'A viral disease caused by *Sugarcane yellow leaf virus* (SCYLV), mainly transmitted by aphids and affecting sugarcane leaf health and yield:\n\n'
-          '🍃 LEAF SYMPTOMS:'
-          '\n• Bright yellowing of the midrib, especially on upper leaves'
-          '\n• Yellowing spreads outward from the midrib over time'
-          '\n• Leaves become pale, thin, and may roll slightly'
-          '\n• In severe cases, leaves dry up and fall off early'
-          '\n\n🌿 PLANT EFFECTS:'
-          '\n• Reduced plant vigor and growth'
-          '\n• Shorter stalks and thinner canes'
-          '\n• Lower juice quality and sugar recovery'
-          '\n• Often no external symptoms in early stages (asymptomatic carriers)'
-          '\n\n🌧️ WHEN IT SPREADS:'
-          '\n• Spread mainly by sugarcane aphids (Melanaphis sacchari)'
-          '\n• Also spreads through infected seed setts (planting material)'
-          '\n• More common in areas with warm temperatures and continuous cropping'
-          '\n\n✅ HOW TO CONTROL IT:'
-          '\n• Use virus-free, certified seed setts for planting'
-          '\n• Control aphid populations using neem oil or selective insecticides'
-          '\n• Remove and destroy infected plants and residues'
-          '\n• Avoid ratooning fields with visible infections'
-          '\n• Practice crop rotation and proper field sanitation'
-          '\n\n⚠️ NOTE: Leaf yellow may look mild at first, but it silently reduces yield and sugar content – clean planting material is key!',
+      '🍃 LEAF SYMPTOMS:'
+      '\n• Bright yellowing of the midrib, especially on upper leaves'
+      '\n• Yellowing spreads outward from the midrib over time'
+      '\n• Leaves become pale, thin, and may roll slightly'
+      '\n• In severe cases, leaves dry up and fall off early'
+      '\n\n🌿 PLANT EFFECTS:'
+      '\n• Reduced plant vigor and growth'
+      '\n• Shorter stalks and thinner canes'
+      '\n• Lower juice quality and sugar recovery'
+      '\n• Often no external symptoms in early stages (asymptomatic carriers)'
+      '\n\n🌧️ WHEN IT SPREADS:'
+      '\n• Spread mainly by sugarcane aphids (Melanaphis sacchari)'
+      '\n• Also spreads through infected seed setts (planting material)'
+      '\n• More common in areas with warm temperatures and continuous cropping'
+      '\n\n✅ HOW TO CONTROL IT:'
+      '\n• Use virus-free, certified seed setts for planting'
+      '\n• Control aphid populations using neem oil or selective insecticides'
+      '\n• Remove and destroy infected plants and residues'
+      '\n• Avoid ratooning fields with visible infections'
+      '\n• Practice crop rotation and proper field sanitation'
+      '\n\n⚠️ NOTE: Leaf yellow may look mild at first, but it silently reduces yield and sugar content – clean planting material is key!',
     },
   ];
+
+ final Map<String, String> _translationCache = {};
+
+  Future<void> _toggleLanguage() async {
+    setState(() => isLoading = true);
+    showUrdu = !showUrdu;
+    
+    // Only translate if we don't have cached translations
+    if (showUrdu) {
+      for (var disease in sugarcaneData) {
+        final key = '${disease['title']}|${disease['description']}';
+        if (!_translationCache.containsKey(key)) {
+          final titleTranslation = await translator.translate(
+            disease['title']!,
+            to: 'ur'
+          );
+          final descTranslation = await translator.translate(
+            disease['description']!,
+            to: 'ur'
+          );
+          _translationCache[key] = '$titleTranslation|$descTranslation';
+        }
+      }
+    }
+    
+    setState(() => isLoading = false);
+  }
+
+  String _getTranslatedTitle(Map<String, String> disease) {
+    if (!showUrdu) return disease['title']!;
+    final key = '${disease['title']}|${disease['description']}';
+    return _translationCache[key]?.split('|').first ?? disease['title']!;
+  }
+
+  String _getTranslatedDescription(Map<String, String> disease) {
+    if (!showUrdu) return disease['description']!;
+    final key = '${disease['title']}|${disease['description']}';
+    return _translationCache[key]?.split('|').last ?? disease['description']!;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -3506,17 +4479,27 @@ class SugarcaneDiseaseDetails extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Sugarcane Disease Details'),
         backgroundColor: const Color.fromARGB(255, 153, 232, 156),
+actions: [
+  IconButton(
+    icon: Icon(showUrdu ? Icons.language : Icons.translate),
+    onPressed: isLoading ? null : _toggleLanguage,
+    tooltip: showUrdu ? 'Show English' : 'Translate to Urdu',
+  ),
+],
+
       ),
       body: GradientBackground(
         child: Center(
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: sugarcaneData
-                  .map((data) => _buildDiseaseContainer(context, data))
-                  .toList(),
-            ),
-          ),
+          child: isLoading
+              ? const CircularProgressIndicator()
+              : SingleChildScrollView(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: sugarcaneData
+                        .map((data) => _buildDiseaseContainer(context, data))
+                        .toList(),
+                  ),
+                ),
         ),
       ),
     );
@@ -3524,6 +4507,9 @@ class SugarcaneDiseaseDetails extends StatelessWidget {
 
   Widget _buildDiseaseContainer(
       BuildContext context, Map<String, String> data) {
+    final title = _getTranslatedTitle(data);
+    final description = _getTranslatedDescription(data);
+
     return Container(
       margin: const EdgeInsets.all(12),
       padding: const EdgeInsets.all(12),
@@ -3546,14 +4532,14 @@ class SugarcaneDiseaseDetails extends StatelessWidget {
             data['image'] ?? '',
             height: 150,
             width: double.infinity,
-            fit: BoxFit.cover,
+            fit: BoxFit.contain,
           ),
           const SizedBox(height: 8),
           Container(
             alignment: Alignment.center,
             width: double.infinity,
             child: Text(
-              data['title'] ?? '',
+              title,
               style: const TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: 16,
@@ -3563,16 +4549,17 @@ class SugarcaneDiseaseDetails extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           TextField(
-            controller: TextEditingController(text: data['description'] ?? ''),
+            controller: TextEditingController(text: description),
             enabled: false,
             maxLines: null,
-            textAlign: TextAlign.center, // Aligns text to the center
-            style: const TextStyle(
+            style: TextStyle(
               color: Colors.black87,
               fontSize: 16,
               fontWeight: FontWeight.w400,
               letterSpacing: 0.5,
+              fontFamily: showUrdu ? 'NotoNastaliqUrdu' : null,
             ),
+            textDirection: showUrdu ? TextDirection.rtl : TextDirection.ltr,
             decoration: InputDecoration(
               filled: true,
               fillColor: Colors.white.withOpacity(0.9),
@@ -3594,7 +4581,7 @@ class SugarcaneDiseaseDetails extends StatelessWidget {
                 color: Colors.blueAccent,
                 size: 24,
               ),
-              labelText: 'Description',
+              labelText: showUrdu ? 'تفصیل' : 'Description',
               labelStyle: TextStyle(
                 color: Colors.blueAccent.withOpacity(0.7),
                 fontWeight: FontWeight.w600,
@@ -3610,7 +4597,7 @@ class SugarcaneDiseaseDetails extends StatelessWidget {
                   width: 2,
                 ),
               ),
-              hintText: 'No description available',
+              hintText: showUrdu ? 'تفصیل دستیاب نہیں' : 'No description available',
               hintStyle: TextStyle(
                 color: Colors.grey.withOpacity(0.5),
                 fontStyle: FontStyle.italic,
