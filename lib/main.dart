@@ -25,66 +25,28 @@ import 'dart:convert';
 import 'dart:io';
 
 Future<void> main() async {
-  await _initializeApp();
-  runApp(LeafDetectApp());
-}
-
-Future<void> _initializeApp() async {
+  await dotenv.load(fileName: 'lib/api_const.env');
   WidgetsFlutterBinding.ensureInitialized();
-  
-  try {
-    await dotenv.load(fileName: 'lib/api_const.env');
-    await NotificationService().init();
-    tz.initializeTimeZones();
-    tz.setLocalLocation(tz.getLocation('Asia/Karachi'));
-  } catch (e) {
-    debugPrint('Initialization error: $e');
-  }
+  final cameras = await availableCameras();
+  await NotificationService().init();
+  tz.initializeTimeZones();
+  tz.setLocalLocation(tz.getLocation('Asia/Karachi'));
+
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => ModelsProvider()),
+        ChangeNotifierProvider(create: (_) => ChatProvider()),
+      ],
+      child: MyApp2(cameras: cameras),
+    ),
+  );
 }
 
-class LeafDetectApp extends StatelessWidget {
-  final List<CameraDescription>? cameras;
-
-  const LeafDetectApp({super.key, this.cameras});
-
-  Future<List<CameraDescription>> _getCameras() async {
-    try {
-      return cameras ?? await availableCameras();
-    } catch (e) {
-      debugPrint('Camera error: $e');
-      return [];
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<List<CameraDescription>>(
-      future: _getCameras(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const MaterialApp(
-            home: Scaffold(
-              body: Center(child: CircularProgressIndicator()),
-            ),
-          );
-        }
-
-        return MultiProvider(
-          providers: [
-            ChangeNotifierProvider(create: (_) => ModelsProvider()),
-            ChangeNotifierProvider(create: (_) => ChatProvider()),
-          ],
-          child: _AppRouter(cameras: snapshot.data ?? []),
-        );
-      },
-    );
-  }
-}
-
-class _AppRouter extends StatelessWidget {
+class MyApp2 extends StatelessWidget {
   final List<CameraDescription> cameras;
 
-  const _AppRouter({required this.cameras});
+  const MyApp2({super.key, required this.cameras});
 
   @override
   Widget build(BuildContext context) {
@@ -97,11 +59,11 @@ class _AppRouter extends StatelessWidget {
       ),
       initialRoute: '/splash',
       routes: {
-        '/splash': (context) => SplashScreen(cameras: cameras),
+        '/splash': (context) => const SplashScreen(cameras: []),
         '/home': (context) => Firstpage(cameras: cameras),
         '/camera': (context) => CameraButton(cameras: cameras),
-        '/search': (context) => const SearchPage(currentIndex: 1),
-        '/history': (context) => const HistoryPage(currentIndex: 2),
+        '/search': (context) => SearchPage(currentIndex: 1),
+        '/history': (context) => HistoryPage(currentIndex: 2),
       },
     );
   }
@@ -125,14 +87,13 @@ class _FirstpageState extends State<Firstpage> with WidgetsBindingObserver {
   ];
   int currentImageIndex = 0;
   Timer? _timer;
-  bool _isCameraInitializing = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _startTimer();
-    // Don't initialize camera here - lazy load when needed
+    _setupCameraController();
   }
 
   void _startTimer() {
@@ -145,64 +106,40 @@ class _FirstpageState extends State<Firstpage> with WidgetsBindingObserver {
     });
   }
 
-  Future<void> _initializeCamera() async {
-    if (widget.cameras.isEmpty || _isCameraInitializing || !mounted) return;
+  Future<void> _setupCameraController() async {
+    if (widget.cameras.isEmpty) return;
 
-    setState(() => _isCameraInitializing = true);
-    
+    cameraController = CameraController(
+      widget.cameras.first,
+      ResolutionPreset.high,
+    );
+
     try {
-      // Dispose existing controller if any
-      await cameraController?.dispose();
-
-      cameraController = CameraController(
-        widget.cameras.first,
-        ResolutionPreset.high,
-        imageFormatGroup: ImageFormatGroup.jpeg,
-      );
-
       await cameraController!.initialize();
-      
-      if (mounted) {
-        setState(() => _isCameraInitializing = false);
-      }
+      if (mounted) setState(() {});
     } catch (e) {
       developer.log("Camera initialization error: $e", error: e);
-      if (mounted) {
-        setState(() {
-          _isCameraInitializing = false;
-          cameraController = null;
-        });
-      }
     }
   }
 
   @override
   void dispose() {
     _timer?.cancel();
-    _timer = null;
     WidgetsBinding.instance.removeObserver(this);
-    _disposeCamera();
+    cameraController?.dispose();
     super.dispose();
-  }
-
-  Future<void> _disposeCamera() async {
-    try {
-      await cameraController?.dispose();
-      cameraController = null;
-    } catch (e) {
-      developer.log("Camera dispose error: $e", error: e);
-    }
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (cameraController == null || !cameraController!.value.isInitialized) {
+      return;
+    }
+
     if (state == AppLifecycleState.inactive) {
-      _disposeCamera();
-    } else if (state == AppLifecycleState.resumed && cameraController == null) {
-      // Only reinitialize if we're likely to need the camera
-      if (ModalRoute.of(context)?.isCurrent ?? false) {
-        _initializeCamera();
-      }
+      cameraController?.dispose();
+    } else if (state == AppLifecycleState.resumed) {
+      _setupCameraController();
     }
   }
 
@@ -218,94 +155,94 @@ class _FirstpageState extends State<Firstpage> with WidgetsBindingObserver {
             child: SizedBox(
               height: MediaQuery.of(context).size.height,
               child: Column(
-  mainAxisAlignment: MainAxisAlignment.center,
-  children: [
-    ElevatedButton(
-      style: ElevatedButton.styleFrom(
-        foregroundColor: const Color.fromARGB(255, 239, 244, 241),
-        backgroundColor: const Color.fromRGBO(46, 114, 48, 1),
-        minimumSize: const Size(300, 90),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(15),
-        ),
-      ),
-      onPressed: () {
-        Navigator.pushNamed(context, '/camera');
-      },
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Image.asset(
-            'assets/c.png',
-            height: 110,
-          ),
-        ],
-      ),
-    ),
-    const SizedBox(height: 50),
-    ElevatedButton(
-      style: ElevatedButton.styleFrom(
-        foregroundColor: const Color.fromARGB(255, 239, 244, 241),
-        backgroundColor: const Color.fromRGBO(46, 114, 48, 1),
-        minimumSize: const Size(300, 35),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(15),
-        ),
-      ),
-      onPressed: () {
-        Navigator.pushNamed(context, '/search');
-      },
-      child: const Text(
-        "Plant",
-        style: TextStyle(
-          color: Color.fromARGB(255, 249, 252, 249),
-          fontSize: 17,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-    ),
-    const SizedBox(height: 35),
-    const MultipleButtonScroll(),
-    const SizedBox(height: 35),
-    ElevatedButton(
-      style: ElevatedButton.styleFrom(
-        foregroundColor: const Color.fromARGB(255, 239, 244, 241),
-        backgroundColor: const Color.fromRGBO(46, 114, 48, 1),
-        minimumSize: const Size(300, 35),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(15),
-        ),
-      ),
-      onPressed: () {
-        Navigator.pushNamed(context, '/history');
-      },
-      child: const Text(
-        "History",
-        style: TextStyle(
-          color: Color.fromARGB(255, 249, 252, 249),
-          fontSize: 17,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-    ),
-    const SizedBox(height: 35),
-    Container(
-      height: 200,
-      width: 300,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(15),
-        color: Colors.white,
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(15),
-        child: Image.asset(
-          imagePaths[currentImageIndex],
-          fit: BoxFit.cover,
-        ),
-      ),
-    ),
-  ],
-)
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      foregroundColor: const Color.fromARGB(255, 239, 244, 241),
+                      backgroundColor: const Color.fromRGBO(46, 114, 48, 1),
+                      minimumSize: const Size(300, 90),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                    ),
+                    onPressed: () {
+                      Navigator.pushNamed(context, '/camera');
+                    },
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Image.asset(
+                          'assets/c.png',
+                          height: 110,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 50),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      foregroundColor: const Color.fromARGB(255, 239, 244, 241),
+                      backgroundColor: const Color.fromRGBO(46, 114, 48, 1),
+                      minimumSize: const Size(300, 35),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                    ),
+                    onPressed: () {
+                      Navigator.pushNamed(context, '/search');
+                    },
+                    child: const Text(
+                      "Plant",
+                      style: TextStyle(
+                        color: Color.fromARGB(255, 249, 252, 249),
+                        fontSize: 17,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 35),
+                  const MultipleButtonScroll(),
+                  const SizedBox(height: 35),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      foregroundColor: const Color.fromARGB(255, 239, 244, 241),
+                      backgroundColor: const Color.fromRGBO(46, 114, 48, 1),
+                      minimumSize: const Size(300, 35),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                    ),
+                    onPressed: () {
+                      Navigator.pushNamed(context, '/history');
+                    },
+                    child: const Text(
+                      "History",
+                      style: TextStyle(
+                        color: Color.fromARGB(255, 249, 252, 249),
+                        fontSize: 17,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 35),
+                  Container(
+                    height: 200,
+                    width: 300,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(15),
+                      color: Colors.white,
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(15),
+                      child: Image.asset(
+                        imagePaths[currentImageIndex],
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -342,7 +279,8 @@ class CameraButton extends StatefulWidget {
   State<CameraButton> createState() => _CameraButtonState();
 }
 
-class _CameraButtonState extends State<CameraButton> with WidgetsBindingObserver {
+class _CameraButtonState extends State<CameraButton>
+    with WidgetsBindingObserver {
   CameraController? _controller;
   Future<void>? _initializeControllerFuture;
   bool _isLoading = false;
@@ -350,34 +288,37 @@ class _CameraButtonState extends State<CameraButton> with WidgetsBindingObserver
   String? _prediction;
   double? _confidence;
   final ImagePicker _picker = ImagePicker();
-  bool _isDisposed = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _requestPermissions().then((_) => _initializeCamera());
+    _initializeCamera();
+    _requestPermissions();
   }
 
   Future<void> _requestPermissions() async {
     try {
       final cameraStatus = await Permission.camera.request();
       final storageStatus = await Permission.storage.request();
-      final photosStatus = Platform.isAndroid 
-          ? await Permission.photos.request() 
+      final photosStatus = Platform.isAndroid
+          ? await Permission.photos.request()
           : PermissionStatus.granted;
 
-      if (!cameraStatus.isGranted || !storageStatus.isGranted || 
+      if (!cameraStatus.isGranted ||
+          !storageStatus.isGranted ||
           (Platform.isAndroid && !photosStatus.isGranted)) {
-        if (cameraStatus.isPermanentlyDenied || 
-            storageStatus.isPermanentlyDenied || 
+        if (cameraStatus.isPermanentlyDenied ||
+            storageStatus.isPermanentlyDenied ||
             (Platform.isAndroid && photosStatus.isPermanentlyDenied)) {
           if (mounted) {
-            _showSettingsDialog('Please enable camera and storage permissions in app settings');
+            _showSettingsDialog(
+                'Please enable camera and storage permissions in app settings');
           }
-        } else if (mounted) {
-          _showPermissionDeniedDialog('Camera and storage permissions are required');
         }
+        //  else if (mounted) {
+        //   _showPermissionDeniedDialog('Camera and storage permissions are required');
+        // }
       }
     } catch (e) {
       debugPrint('Permission error: $e');
@@ -388,33 +329,24 @@ class _CameraButtonState extends State<CameraButton> with WidgetsBindingObserver
   }
 
   Future<void> _initializeCamera() async {
-    if (widget.cameras.isEmpty || _isDisposed || !mounted) return;
+    if (widget.cameras.isEmpty || !mounted) return;
 
     try {
-      // Dispose existing controller first
-      await _controller?.dispose();
-
       _controller = CameraController(
         widget.cameras.first,
         ResolutionPreset.high,
-        imageFormatGroup: ImageFormatGroup.jpeg,
       );
 
       _initializeControllerFuture = _controller!.initialize().then((_) {
-        if (mounted && !_isDisposed) {
+        if (mounted) {
           setState(() => _isCameraReady = true);
-        }
-      }).catchError((e) {
-        debugPrint('Camera initialization error: $e');
-        if (mounted && !_isDisposed) {
-          setState(() => _isCameraReady = false);
         }
       });
 
       await _initializeControllerFuture;
     } catch (e) {
-      debugPrint('Camera setup error: $e');
-      if (mounted && !_isDisposed) {
+      debugPrint('Camera initialization error: $e');
+      if (mounted) {
         setState(() => _isCameraReady = false);
         _showError('Failed to initialize camera');
       }
@@ -423,34 +355,27 @@ class _CameraButtonState extends State<CameraButton> with WidgetsBindingObserver
 
   @override
   void dispose() {
-    _isDisposed = true;
+    _controller?.dispose();
     WidgetsBinding.instance.removeObserver(this);
-    _disposeCamera();
     super.dispose();
-  }
-
-  Future<void> _disposeCamera() async {
-    try {
-      await _controller?.dispose();
-      _controller = null;
-    } catch (e) {
-      debugPrint('Error disposing camera: $e');
-    }
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (_isDisposed) return;
+    if (_controller == null || !_controller!.value.isInitialized) return;
 
     if (state == AppLifecycleState.inactive) {
-      _disposeCamera();
-    } else if (state == AppLifecycleState.resumed && _controller == null) {
+      _controller?.dispose();
+      if (mounted) {
+        setState(() => _isCameraReady = false);
+      }
+    } else if (state == AppLifecycleState.resumed) {
       _initializeCamera();
     }
   }
 
   Future<void> _takePicture() async {
-    if (!mounted || _isDisposed || _controller == null || !_isCameraReady) return;
+    if (!mounted || _controller == null || !_isCameraReady) return;
 
     try {
       setState(() => _isLoading = true);
@@ -459,13 +384,9 @@ class _CameraButtonState extends State<CameraButton> with WidgetsBindingObserver
       await _sendImageToServer(File(image.path));
       await Gal.putImage(image.path);
     } catch (e) {
-      if (mounted && !_isDisposed) {
-        _showError('Failed to take picture: ${e.toString()}');
-      }
+      if (mounted) _showError('Failed to take picture: ${e.toString()}');
     } finally {
-      if (mounted && !_isDisposed) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -473,23 +394,17 @@ class _CameraButtonState extends State<CameraButton> with WidgetsBindingObserver
     try {
       setState(() => _isLoading = true);
       final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
-      if (pickedFile != null && mounted && !_isDisposed) {
+      if (pickedFile != null) {
         await _sendImageToServer(File(pickedFile.path));
       }
     } catch (e) {
-      if (mounted && !_isDisposed) {
-        _showError('Failed to pick image: ${e.toString()}');
-      }
+      if (mounted) _showError('Failed to pick image: ${e.toString()}');
     } finally {
-      if (mounted && !_isDisposed) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   Future<void> _sendImageToServer(File imageFile) async {
-    if (!mounted || _isDisposed) return;
-
     try {
       var request = http.MultipartRequest(
         'POST',
@@ -509,7 +424,7 @@ class _CameraButtonState extends State<CameraButton> with WidgetsBindingObserver
         final responseData = await response.stream.bytesToString();
         final jsonResponse = json.decode(responseData);
 
-        if (mounted && !_isDisposed) {
+        if (mounted) {
           setState(() {
             _prediction = jsonResponse['prediction'];
             _confidence = jsonResponse['confidence'];
@@ -520,15 +435,11 @@ class _CameraButtonState extends State<CameraButton> with WidgetsBindingObserver
         throw Exception('Server returned ${response.statusCode}');
       }
     } catch (e) {
-      if (mounted && !_isDisposed) {
-        _showError('Failed to send image: ${e.toString()}');
-      }
+      if (mounted) _showError('Failed to send image: ${e.toString()}');
     }
   }
 
   void _showResult(String prediction, double confidence) {
-    if (!mounted || _isDisposed) return;
-
     showDialog(
       context: context,
       builder: (BuildContext context) => AlertDialog(
@@ -552,8 +463,6 @@ class _CameraButtonState extends State<CameraButton> with WidgetsBindingObserver
   }
 
   void _showError(String message) {
-    if (!mounted || _isDisposed) return;
-
     showDialog(
       context: context,
       builder: (BuildContext context) => AlertDialog(
@@ -569,34 +478,30 @@ class _CameraButtonState extends State<CameraButton> with WidgetsBindingObserver
     );
   }
 
-  void _showPermissionDeniedDialog(String message) {
-    if (!mounted || _isDisposed) return;
-
-    showDialog(
-      context: context,
-      builder: (BuildContext context) => AlertDialog(
-        title: const Text('Permission Denied'),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
-          ),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              await _requestPermissions();
-            },
-            child: const Text('Retry'),
-          ),
-        ],
-      ),
-    );
-  }
+  // void _showPermissionDeniedDialog(String message) {
+  //   showDialog(
+  //     context: context,
+  //     builder: (BuildContext context) => AlertDialog(
+  //       title: const Text('Permission Denied'),
+  //       content: Text(message),
+  //       actions: [
+  //         TextButton(
+  //           onPressed: () => Navigator.pop(context),
+  //           child: const Text('OK'),
+  //         ),
+  //         TextButton(
+  //           onPressed: () async {
+  //             Navigator.pop(context);
+  //             await _requestPermissions();
+  //           },
+  //           child: const Text('Retry'),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
 
   void _showSettingsDialog(String message) {
-    if (!mounted || _isDisposed) return;
-
     showDialog(
       context: context,
       builder: (BuildContext context) => AlertDialog(
